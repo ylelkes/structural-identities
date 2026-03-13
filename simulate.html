@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Simulation Runner — hybrid_task</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Menlo', 'Consolas', monospace;
+    background: #0d0d0d;
+    color: #c0c0c0;
+    padding: 30px;
+    min-height: 100vh;
+  }
+  h1   { color: #5a9; font-size: 1.3rem; margin-bottom: 6px; }
+  h2   { color: #aaa; font-size: 1rem; font-weight: normal; margin-bottom: 24px; }
+  #run-btn {
+    background: #2a6; color: #fff; border: none;
+    padding: 12px 36px; font-size: 1rem; border-radius: 4px;
+    cursor: pointer; font-family: inherit; letter-spacing: 0.04em;
+    margin-bottom: 24px;
+  }
+  #run-btn:disabled { background: #444; cursor: default; }
+  #log {
+    background: #111; border: 1px solid #222;
+    padding: 16px; border-radius: 4px;
+    font-size: 0.82rem; line-height: 1.7;
+    white-space: pre-wrap;
+    max-height: 480px; overflow-y: auto;
+    margin-bottom: 24px;
+  }
+  .ok   { color: #5a9; }
+  .info { color: #888; }
+  .hdr  { color: #e8a030; font-weight: bold; }
+
+  #downloads {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 420px;
+  }
+  #downloads.visible { display: flex; }
+  #downloads button {
+    background: #1e4; color: #fff; border: none;
+    padding: 10px 20px; font-size: 0.9rem; border-radius: 4px;
+    cursor: pointer; font-family: inherit; text-align: left;
+  }
+  #downloads button:hover { filter: brightness(1.2); }
+  #downloads h3 { color: #aaa; font-size: 0.9rem; margin-bottom: 4px; font-weight: normal; }
+  #summary-box {
+    background: #111; border: 1px solid #222;
+    padding: 14px; border-radius: 4px;
+    font-size: 0.82rem; line-height: 1.8;
+    max-width: 700px;
+    margin-top: 24px;
+    display: none;
+  }
+  #summary-box.visible { display: block; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.78rem; margin-top: 12px; }
+  th { color: #e8a030; text-align: left; padding: 4px 10px; border-bottom: 1px solid #333; }
+  td { padding: 3px 10px; color: #bbb; border-bottom: 1px solid #1a1a1a; }
+  tr:hover td { background: #161616; }
+
+  /* ── Viz nav ── */
+  #viz-nav {
+    display: none;
+    position: sticky; top: 0; z-index: 100;
+    background: #0d0d0d; border-bottom: 1px solid #222;
+    padding: 10px 0 10px; margin: 32px 0 0;
+    gap: 6px; flex-wrap: wrap;
+  }
+  #viz-nav a {
+    color: #5a9; text-decoration: none; font-size: 0.85rem;
+    padding: 6px 14px; border: 1px solid #2a6; border-radius: 3px;
+    transition: background 0.15s;
+  }
+  #viz-nav a:hover { background: #1a3a2a; }
+
+  /* ── Viz sections ── */
+  .viz-section {
+    margin-top: 40px; scroll-margin-top: 52px;
+  }
+  .viz-section h3.viz-toggle {
+    color: #e8a030; font-size: 1rem; font-weight: bold;
+    margin-bottom: 4px; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .viz-section h3.viz-toggle::before {
+    content: "▶"; font-size: 0.7rem; transition: transform 0.15s;
+    display: inline-block;
+  }
+  .viz-section.open h3.viz-toggle::before { transform: rotate(90deg); }
+  .viz-content { display: none; }
+  .viz-section.open .viz-content { display: block; }
+  .viz-section p.viz-sub {
+    color: #666; font-size: 0.78rem; margin-bottom: 12px;
+  }
+  .viz-section svg { display: block; max-width: 100%; }
+</style>
+</head>
+<body>
+
+<h1>Simulation Runner — hybrid_task.html</h1>
+<h2>20 possible nodes · 10 per participant (me always included) · diverse American profiles</h2>
+
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+  <button id="run-btn" style="margin-bottom:0;">▶ Run Simulation</button>
+  <label style="color:#888;font-size:0.85rem;">
+    Participants:
+    <input id="n-participants" type="number" min="1" max="10000" value="1000"
+      style="width:72px;background:#1e1e1e;border:1px solid #444;color:#f0f0f0;
+             padding:6px 8px;border-radius:4px;font-family:inherit;font-size:0.85rem;
+             margin-left:6px;">
+  </label>
+</div>
+
+<div id="log"><span class="info">Press the button above to begin.</span></div>
+
+<div id="downloads">
+  <h3>Download outputs:</h3>
+  <button id="dl-all" style="background:#555;font-weight:bold;">⬇ Download All (4 files)</button>
+  <button id="dl-trials-csv">all_trials.csv  (all trial rows, both blocks)</button>
+  <button id="dl-trials-json">all_trials.json</button>
+  <button id="dl-b1">block1_target_summary.csv</button>
+  <button id="dl-b2">block2_pair_summary.csv</button>
+</div>
+
+<div id="summary-box"></div>
+
+<!-- ── Visualization nav + sections (shown after simulation) ── -->
+<nav id="viz-nav">
+  <a href="#section-network">Network</a>
+  <a href="#section-valence">Valence</a>
+  <a href="#section-me">Me Connections</a>
+  <a href="#section-groups">By Group</a>
+  <a href="#section-centrality">Centrality</a>
+</nav>
+
+<div class="viz-section" id="section-network">
+  <h3 class="viz-toggle">Belief Network</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Node colour = valence (red = negative, blue = positive) · Shape = category · Node size = centrality · Edge colour = association direction · Edge width = strength</p>
+    <div id="viz-network"></div>
+  </div>
+</div>
+
+<div class="viz-section" id="section-valence">
+  <h3 class="viz-toggle">Node Valence</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Mean proportion rated GOOD across all participants who saw each node</p>
+    <div id="viz-valence"></div>
+  </div>
+</div>
+
+<div class="viz-section" id="section-me">
+  <h3 class="viz-toggle">Me Connections</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Centred association of each concept with "me" (prop_together − 0.5)</p>
+    <div id="viz-me"></div>
+  </div>
+</div>
+
+<div class="viz-section" id="section-groups">
+  <h3 class="viz-toggle">Belief Networks by Political Group</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Same layout algorithm applied separately to each political camp's data</p>
+    <div id="viz-groups"></div>
+  </div>
+</div>
+
+<div class="viz-section" id="section-centrality">
+  <h3 class="viz-toggle">Centrality Scores</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Weighted strength = sum of incident edge strengths · Eigenvector = connected-to-hubs score (both normalised 0–1)</p>
+    <div id="viz-centrality"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================================================================
+   CONFIGURATION — keep in sync with hybrid_task.html
+================================================================ */
+const CONFIG = {
+  experimentVersion: "1.0.0",
+  nodesPerParticipant: 10,
+  timings: {
+    fixationMs: 500, blankMs: 100,
+    block1DeadlineMs: 1500, block2DeadlineMs: 2000,
+    itiMs: 250, timeoutFeedbackMs: 500
+  },
+  block1: {
+    enabled: true, repetitionsPerTarget: 4, subBlocks: 2,
+    keyMappingMode: "counterbalance", fixedMapping: { good: "e", bad: "i" }
+  },
+  block2: {
+    enabled: true,
+    repetitionsPerPair: 1,
+    repetitionsPerMePair: 2,
+    subBlocks: 2,
+    keyMappingMode: "counterbalance", fixedMapping: { together: "e", apart: "i" }
+  },
+  nodes: [
+    /* Identity (10, me always included) */
+    { category:"identity", label:"me",
+      stimuli:["me","myself","my values","my life"],
+      alwaysInclude:true, includeFirstName:true },
+    { category:"identity", label:"Democrats",
+      stimuli:["Democrats","the Democratic Party"] },
+    { category:"identity", label:"Republicans",
+      stimuli:["Republicans","the Republican Party"] },
+    { category:"identity", label:"White people",
+      stimuli:["White people","White Americans"] },
+    { category:"identity", label:"Black people",
+      stimuli:["Black people","Black Americans","African Americans"] },
+    { category:"identity", label:"women",
+      stimuli:["women","American women"] },
+    { category:"identity", label:"men",
+      stimuli:["men","American men"] },
+    { category:"identity", label:"working class people",
+      stimuli:["working class people","the working class","blue-collar workers"] },
+    { category:"identity", label:"middle class people",
+      stimuli:["middle class people","the middle class"] },
+    { category:"identity", label:"poor people",
+      stimuli:["poor people","low-income Americans","people in poverty"] },
+
+    /* Policy (5) */
+    { category:"policy", label:"stricter gun laws",
+      stimuli:["stricter gun laws","gun control","assault weapon bans",
+               "universal background checks"] },
+    { category:"policy", label:"abortion access",
+      stimuli:["abortion access","abortion rights","reproductive rights",
+               "the right to an abortion"] },
+    { category:"policy", label:"universal health care",
+      stimuli:["universal health care","Medicare for All",
+               "government-provided health insurance","single-payer health care"] },
+    { category:"policy", label:"cutting taxes",
+      stimuli:["cutting taxes","tax cuts","lower taxes",
+               "reducing the tax burden"] },
+    { category:"policy", label:"restricting immigration",
+      stimuli:["restricting immigration","immigration restrictions",
+               "building the border wall","deporting immigrants",
+               "stricter border security"] },
+
+    /* Values (5) */
+    { category:"values", label:"freedom",
+      stimuli:["freedom","individual freedom","personal liberty"] },
+    { category:"values", label:"equality",
+      stimuli:["equality","equal rights","equal opportunity"] },
+    { category:"values", label:"tradition",
+      stimuli:["tradition","traditional values","preserving traditions"] },
+    { category:"values", label:"security",
+      stimuli:["security","national security","keeping America safe"] },
+    { category:"values", label:"compassion",
+      stimuli:["compassion","caring for others","helping the vulnerable"] }
+  ]
+};
+
+/* ================================================================
+   TYPE VALENCES
+   Five base political types × 30 nodes  →  p(good)
+   These are population means; individual noise is added at runtime.
+================================================================ */
+const TYPE_VALENCES = {
+  progressive: {
+    "me":0.92,
+    "Democrats":0.88, "Republicans":0.08,
+    "White people":0.60, "Black people":0.90, "women":0.92, "men":0.55,
+    "working class people":0.85, "middle class people":0.75, "poor people":0.88,
+    "stricter gun laws":0.88, "abortion access":0.92, "universal health care":0.92,
+    "cutting taxes":0.12, "restricting immigration":0.08,
+    "freedom":0.78, "equality":0.95, "tradition":0.22, "security":0.52, "compassion":0.95
+  },
+  liberal: {
+    "me":0.90,
+    "Democrats":0.78, "Republicans":0.22,
+    "White people":0.65, "Black people":0.82, "women":0.85, "men":0.62,
+    "working class people":0.80, "middle class people":0.78, "poor people":0.82,
+    "stricter gun laws":0.78, "abortion access":0.82, "universal health care":0.85,
+    "cutting taxes":0.25, "restricting immigration":0.22,
+    "freedom":0.80, "equality":0.90, "tradition":0.35, "security":0.60, "compassion":0.90
+  },
+  centrist: {
+    "me":0.88,
+    "Democrats":0.52, "Republicans":0.50,
+    "White people":0.70, "Black people":0.72, "women":0.78, "men":0.72,
+    "working class people":0.75, "middle class people":0.80, "poor people":0.70,
+    "stricter gun laws":0.58, "abortion access":0.60, "universal health care":0.65,
+    "cutting taxes":0.52, "restricting immigration":0.50,
+    "freedom":0.82, "equality":0.72, "tradition":0.60, "security":0.72, "compassion":0.75
+  },
+  conservative: {
+    "me":0.90,
+    "Democrats":0.22, "Republicans":0.78,
+    "White people":0.80, "Black people":0.55, "women":0.72, "men":0.80,
+    "working class people":0.65, "middle class people":0.80, "poor people":0.52,
+    "stricter gun laws":0.22, "abortion access":0.18, "universal health care":0.28,
+    "cutting taxes":0.82, "restricting immigration":0.80,
+    "freedom":0.88, "equality":0.55, "tradition":0.85, "security":0.88, "compassion":0.62
+  },
+  maga: {
+    "me":0.92,
+    "Democrats":0.06, "Republicans":0.92,
+    "White people":0.85, "Black people":0.40, "women":0.62, "men":0.88,
+    "working class people":0.68, "middle class people":0.72, "poor people":0.42,
+    "stricter gun laws":0.06, "abortion access":0.06, "universal health care":0.12,
+    "cutting taxes":0.90, "restricting immigration":0.94,
+    "freedom":0.88, "equality":0.35, "tradition":0.92, "security":0.92, "compassion":0.42
+  }
+};
+
+/* Map profile types to one of the five base types */
+const TYPE_MAP = {
+  strong_progressive:     "progressive",
+  moderate_progressive:   "progressive",
+  progressive:            "progressive",
+  moderate_democrat:      "liberal",
+  union_democrat:         "liberal",
+  liberal:                "liberal",
+  centrist_independent:   "centrist",
+  libertarian:            "centrist",
+  centrist:               "centrist",
+  economic_populist:      "centrist",
+  older_moderate:         "centrist",
+  moderate_republican:    "conservative",
+  suburban_republican:    "conservative",
+  business_republican:    "conservative",
+  never_trump_republican: "conservative",
+  conservative_republican:"conservative",
+  evangelical_republican: "conservative",
+  gun_rights_voter:       "conservative",
+  conservative:           "conservative",
+  maga_republican:        "maga",
+  maga:                   "maga"
+};
+
+/* ================================================================
+   30 PARTICIPANT PROFILES  (demographics + RT params only;
+   valences are derived from TYPE_VALENCES at runtime)
+================================================================ */
+const PROFILES = [
+  /* Strong progressives */
+  { id:"P001", firstName:"Emma",     age:23, gender:"F", type:"strong_progressive",        rtMean:550, rtSD:130, timeoutRate:0.02 },
+  { id:"P002", firstName:"Jaylen",   age:27, gender:"M", type:"strong_progressive",        rtMean:580, rtSD:140, timeoutRate:0.02 },
+  { id:"P003", firstName:"Sofia",    age:31, gender:"F", type:"strong_progressive",        rtMean:600, rtSD:160, timeoutRate:0.03 },
+  { id:"P004", firstName:"Marcus",   age:45, gender:"M", type:"strong_progressive",        rtMean:620, rtSD:150, timeoutRate:0.02 },
+  { id:"P005", firstName:"Aisha",    age:52, gender:"F", type:"strong_progressive",        rtMean:650, rtSD:170, timeoutRate:0.03 },
+  /* Moderate Democrats */
+  { id:"P006", firstName:"Karen",    age:38, gender:"F", type:"moderate_democrat",         rtMean:700, rtSD:180, timeoutRate:0.04 },
+  { id:"P007", firstName:"DeShawn",  age:34, gender:"M", type:"moderate_democrat",         rtMean:720, rtSD:190, timeoutRate:0.04 },
+  { id:"P008", firstName:"Linda",    age:58, gender:"F", type:"moderate_democrat",         rtMean:750, rtSD:200, timeoutRate:0.05 },
+  { id:"P009", firstName:"Carlos",   age:29, gender:"M", type:"moderate_democrat",         rtMean:650, rtSD:160, timeoutRate:0.03 },
+  { id:"P010", firstName:"Priya",    age:41, gender:"F", type:"moderate_democrat",         rtMean:680, rtSD:175, timeoutRate:0.03 },
+  { id:"P011", firstName:"Robert",   age:62, gender:"M", type:"union_democrat",            rtMean:780, rtSD:200, timeoutRate:0.06 },
+  /* Independents / centrists */
+  { id:"P012", firstName:"Jennifer", age:36, gender:"F", type:"centrist_independent",      rtMean:800, rtSD:210, timeoutRate:0.06 },
+  { id:"P013", firstName:"Tyler",    age:28, gender:"M", type:"libertarian",               rtMean:620, rtSD:150, timeoutRate:0.02 },
+  { id:"P014", firstName:"Donna",    age:55, gender:"F", type:"centrist_independent",      rtMean:850, rtSD:220, timeoutRate:0.07 },
+  { id:"P015", firstName:"Ahmad",    age:33, gender:"M", type:"centrist_independent",      rtMean:720, rtSD:185, timeoutRate:0.04 },
+  { id:"P016", firstName:"Nancy",    age:67, gender:"F", type:"centrist_independent",      rtMean:900, rtSD:230, timeoutRate:0.08 },
+  /* Moderate Republicans */
+  { id:"P017", firstName:"Brad",     age:44, gender:"M", type:"moderate_republican",       rtMean:600, rtSD:155, timeoutRate:0.03 },
+  { id:"P018", firstName:"Michelle", age:39, gender:"F", type:"suburban_republican",       rtMean:640, rtSD:165, timeoutRate:0.03 },
+  { id:"P019", firstName:"Greg",     age:53, gender:"M", type:"business_republican",       rtMean:580, rtSD:145, timeoutRate:0.02 },
+  { id:"P020", firstName:"Patricia", age:60, gender:"F", type:"moderate_republican",       rtMean:680, rtSD:180, timeoutRate:0.04 },
+  { id:"P021", firstName:"Kevin",    age:35, gender:"M", type:"moderate_republican",       rtMean:610, rtSD:155, timeoutRate:0.03 },
+  { id:"P022", firstName:"Heather",  age:48, gender:"F", type:"never_trump_republican",    rtMean:720, rtSD:190, timeoutRate:0.05 },
+  /* Conservative / MAGA Republicans */
+  { id:"P023", firstName:"Dale",     age:57, gender:"M", type:"conservative_republican",   rtMean:540, rtSD:130, timeoutRate:0.02 },
+  { id:"P024", firstName:"Brenda",   age:52, gender:"F", type:"evangelical_republican",    rtMean:560, rtSD:135, timeoutRate:0.02 },
+  { id:"P025", firstName:"Randy",    age:43, gender:"M", type:"maga_republican",           rtMean:510, rtSD:120, timeoutRate:0.01 },
+  { id:"P026", firstName:"Sharon",   age:61, gender:"F", type:"conservative_republican",   rtMean:580, rtSD:140, timeoutRate:0.02 },
+  { id:"P027", firstName:"Wayne",    age:49, gender:"M", type:"gun_rights_voter",          rtMean:530, rtSD:125, timeoutRate:0.01 },
+  { id:"P028", firstName:"Tammy",    age:38, gender:"F", type:"maga_republican",           rtMean:520, rtSD:122, timeoutRate:0.01 },
+  /* Special profiles */
+  { id:"P029", firstName:"Denise",   age:44, gender:"F", type:"economic_populist",         rtMean:760, rtSD:195, timeoutRate:0.05 },
+  { id:"P030", firstName:"James",    age:70, gender:"M", type:"older_moderate",            rtMean:950, rtSD:240, timeoutRate:0.09 }
+];
+
+/* ================================================================
+   UTILITIES
+================================================================ */
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function median(arr) {
+  const v = arr.filter(x => x != null && !isNaN(x)).sort((a, b) => a - b);
+  if (!v.length) return null;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 === 0 ? (v[m-1] + v[m]) / 2 : v[m];
+}
+
+function round(n, dp = 4) {
+  return n == null ? null : parseFloat(n.toFixed(dp));
+}
+
+function randn() {
+  let u, v;
+  do { u = Math.random(); } while (u === 0);
+  do { v = Math.random(); } while (v === 0);
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function sampleRT(meanMs, sdMs, deadlineMs) {
+  const variance = sdMs * sdMs, meanSq = meanMs * meanMs;
+  const sigmaLog = Math.sqrt(Math.log(1 + variance / meanSq));
+  const muLog    = Math.log(meanMs) - sigmaLog * sigmaLog / 2;
+  return Math.max(80, Math.min(deadlineMs - 1, Math.round(Math.exp(muLog + sigmaLog * randn()))));
+}
+
+function reorderAvoidRepeats(arr, keyFn) {
+  const a = [...arr];
+  for (let i = 2; i < a.length; i++) {
+    if (keyFn(a[i]) === keyFn(a[i-1]) && keyFn(a[i]) === keyFn(a[i-2])) {
+      let sw = -1;
+      for (let j = i + 1; j < a.length; j++) if (keyFn(a[j]) !== keyFn(a[i])) { sw = j; break; }
+      if (sw !== -1) [a[i], a[sw]] = [a[sw], a[i]];
+    }
+  }
+  return a;
+}
+
+function toCSV(rows) {
+  if (!rows.length) return "";
+  const colSet = new Set();
+  rows.forEach(r => Object.keys(r).forEach(k => colSet.add(k)));
+  const cols = Array.from(colSet);
+  const esc  = v => { const s = v == null ? "" : String(v);
+    return (s.includes(",") || s.includes('"') || s.includes("\n"))
+      ? `"${s.replace(/"/g, '""')}"` : s; };
+  return [cols.join(","), ...rows.map(r => cols.map(c => esc(r[c])).join(","))].join("\n");
+}
+
+function downloadFile(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+/* ================================================================
+   MINIMAL ZIP WRITER (stored, no compression)
+   Produces a valid .zip from an array of { name, data } entries
+   where data is a string or Uint8Array.
+================================================================ */
+function makeZip(files) {
+  const enc = new TextEncoder();
+
+  // CRC-32 lookup table
+  const crcTable = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    crcTable[i] = c;
+  }
+  function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++)
+      crc = crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function u16(n) { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, n, true); return b; }
+  function u32(n) { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n, true); return b; }
+  function cat(...arrays) {
+    const out = new Uint8Array(arrays.reduce((s, a) => s + a.length, 0));
+    let p = 0; for (const a of arrays) { out.set(a, p); p += a.length; }
+    return out;
+  }
+
+  const now = new Date();
+  const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1));
+  const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate());
+
+  const locals = [], centrals = [];
+  let offset = 0;
+
+  for (const { name, data } of files) {
+    const nameB = enc.encode(name);
+    const dataB = typeof data === "string" ? enc.encode(data) : data;
+    const crc   = crc32(dataB);
+    const sz    = dataB.length;
+
+    const local = cat(
+      new Uint8Array([0x50,0x4B,0x03,0x04]),
+      u16(20), u16(0), u16(0),           // version, flags, method (stored)
+      u16(dosTime), u16(dosDate),
+      u32(crc), u32(sz), u32(sz),        // crc, compressed size, uncompressed size
+      u16(nameB.length), u16(0),         // name length, extra length
+      nameB, dataB
+    );
+    const central = cat(
+      new Uint8Array([0x50,0x4B,0x01,0x02]),
+      u16(20), u16(20), u16(0), u16(0),  // versions, flags, method
+      u16(dosTime), u16(dosDate),
+      u32(crc), u32(sz), u32(sz),
+      u16(nameB.length), u16(0), u16(0), // name, extra, comment lengths
+      u16(0), u16(0), u32(0),            // disk start, internal/external attrs
+      u32(offset),                       // local header offset
+      nameB
+    );
+    locals.push(local);
+    centrals.push(central);
+    offset += local.length;
+  }
+
+  const cdSize   = centrals.reduce((s, c) => s + c.length, 0);
+  const eocd = cat(
+    new Uint8Array([0x50,0x4B,0x05,0x06]),
+    u16(0), u16(0),                      // disk numbers
+    u16(files.length), u16(files.length),
+    u32(cdSize), u32(offset),
+    u16(0)                               // comment length
+  );
+
+  return cat(...locals, ...centrals, eocd);
+}
+
+/* ================================================================
+   SETUP PER PARTICIPANT
+   - Resolves individual valences (TYPE_VALENCES + Gaussian noise)
+   - Selects 10 random nodes (me always included)
+================================================================ */
+
+function setupParticipant(profile) {
+  /* Resolve valences: base type + individual noise (SD=0.08, clamped) */
+  const baseType     = TYPE_MAP[profile.type] || "centrist";
+  const baseValences = TYPE_VALENCES[baseType];
+  const resolvedB1   = {};
+  for (const [label, v] of Object.entries(baseValences)) {
+    resolvedB1[label] = Math.min(0.98, Math.max(0.02, v + 0.08 * randn()));
+  }
+
+  /* Random node selection: alwaysInclude nodes first, then random sample */
+  const alwaysNodes  = CONFIG.nodes.filter(n => n.alwaysInclude);
+  const poolNodes    = CONFIG.nodes.filter(n => !n.alwaysInclude);
+  const nRandom      = CONFIG.nodesPerParticipant - alwaysNodes.length;
+  const selectedNodes = [
+    ...alwaysNodes,
+    ...shuffle([...poolNodes]).slice(0, nRandom)
+  ];
+
+  const nodeMap = {};
+  for (const node of selectedNodes) {
+    const n = { ...node, stimuli: [...(node.stimuli || [])] };
+    if (n.includeFirstName && profile.firstName) {
+      n.stimuli = [...n.stimuli, profile.firstName];
+    }
+    nodeMap[n.label] = n;
+  }
+
+  /* Key mappings (counterbalanced randomly) */
+  const b1f = Math.random() < 0.5;
+  const b1M = b1f ? {good:"e",bad:"i"} : {good:"i",bad:"e"};
+  const b1C = `E=${b1M.good==="e"?"good":"bad"},I=${b1M.bad==="i"?"bad":"good"}`;
+
+  const b2f = Math.random() < 0.5;
+  const b2M = b2f ? {together:"e",apart:"i"} : {together:"i",apart:"e"};
+  const b2C = `E=${b2M.together==="e"?"together":"apart"},I=${b2M.apart==="i"?"apart":"together"}`;
+
+  const pairs = generatePairs(nodeMap);
+
+  return { nodeMap, b1M, b1C, b2M, b2C, pairs, resolvedB1 };
+}
+
+function generatePairs(nodeMap) {
+  const labels = Object.keys(nodeMap);
+  const resolved = [];
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      const n1 = nodeMap[labels[i]], n2 = nodeMap[labels[j]];
+      resolved.push({ id: [labels[i], labels[j]].sort().join(" | "), node1: n1, node2: n2 });
+    }
+  }
+  return resolved;
+}
+
+/* ================================================================
+   TRIAL GENERATION
+================================================================ */
+
+function genB1Trials(nodeMap) {
+  const targets = Object.values(nodeMap);
+  const reps = CONFIG.block1.repetitionsPerTarget, nSub = CONFIG.block1.subBlocks;
+  const subs = Array.from({length: nSub}, () => []);
+  for (const node of targets) for (let r = 0; r < reps; r++) subs[r % nSub].push(node);
+  const all = []; let idx = 0;
+  for (let b = 0; b < nSub; b++) {
+    for (const node of reorderAvoidRepeats(shuffle(subs[b]), n => n.label))
+      all.push({ subBlock: b+1, trialIndex: idx++, node });
+  }
+  return all;
+}
+
+function genB2Trials(pairs) {
+  const nSub = CONFIG.block2.subBlocks;
+  const subs = Array.from({length: nSub}, () => []);
+  for (const pair of pairs) {
+    const isMePair = pair.node1.category === "self" || pair.node2.category === "self";
+    const reps = isMePair ? CONFIG.block2.repetitionsPerMePair : CONFIG.block2.repetitionsPerPair;
+    for (let r = 0; r < reps; r++) subs[r % nSub].push(pair);
+  }
+  const all = []; let idx = 0;
+  for (let b = 0; b < nSub; b++) {
+    for (const pair of reorderAvoidRepeats(shuffle(subs[b]), p => p.id))
+      all.push({ subBlock: b+1, trialIndex: idx++, pair });
+  }
+  return all;
+}
+
+/* ================================================================
+   RESPONSE SIMULATION
+   pGood:    use resolvedB1 valence for the node
+   pTogether: Heider balance  p = 0.5 + 0.4 × (2v1−1)(2v2−1)
+================================================================ */
+
+function pGood(ctx, label) {
+  return ctx.resolvedB1[label] ?? 0.5;
+}
+
+function pTogether(ctx, pairId) {
+  const [a, b] = pairId.split(" | ");
+  const v1 = ctx.resolvedB1[a] ?? 0.5;
+  const v2 = ctx.resolvedB1[b] ?? 0.5;
+  return 0.5 + 0.4 * (2 * v1 - 1) * (2 * v2 - 1);
+}
+
+function simRT(profile, bias, deadline) {
+  const speed = 1 - 0.20 * (Math.min(bias, 0.5) / 0.5);
+  return sampleRT(profile.rtMean * speed, profile.rtSD, deadline);
+}
+
+/* ================================================================
+   RUN ONE PARTICIPANT — returns all trial rows
+================================================================ */
+
+function runParticipant(profile) {
+  const ctx  = setupParticipant(profile);
+  const b1T  = genB1Trials(ctx.nodeMap);
+  const b2T  = genB2Trials(ctx.pairs);
+  const rows = [];
+  const now  = () => new Date().toISOString();
+
+  /* Block 1 */
+  for (const t of b1T) {
+    const { node }  = t;
+    const deadline  = CONFIG.timings.block1DeadlineMs;
+    const pg        = pGood(ctx, node.label);
+    const bias      = Math.abs(pg - 0.5);
+    const timedOut  = Math.random() < profile.timeoutRate;
+    const rt        = timedOut ? null : simRT(profile, bias, deadline);
+    const rl        = timedOut ? null : (Math.random() < pg ? "good" : "bad");
+    const rk        = rl ? ctx.b1M[rl] : null;
+    rows.push({
+      participant_id: profile.id, first_name: profile.firstName,
+      participant_type: profile.type, experiment_version: CONFIG.experimentVersion,
+      block_name: "block1", subblock_number: t.subBlock, trial_index: t.trialIndex,
+      task_type: "single_target", mapping_condition: ctx.b1C,
+      trial_start_timestamp: now(), rt_ms: rt, timeout: timedOut ? 1 : 0,
+      response_key: rk, response_label: rl,
+      target_label: node.label, target_category: node.category,
+      stimulus_presented: pick(node.stimuli)
+    });
+  }
+
+  /* Block 2 */
+  for (const t of b2T) {
+    const { pair }  = t;
+    const deadline  = CONFIG.timings.block2DeadlineMs;
+    const pt        = pTogether(ctx, pair.id);
+    const bias      = Math.abs(pt - 0.5);
+    const timedOut  = Math.random() < profile.timeoutRate;
+    const rt        = timedOut ? null : simRT(profile, bias, deadline);
+    const rl        = timedOut ? null : (Math.random() < pt ? "together" : "apart");
+    const rk        = rl ? ctx.b2M[rl] : null;
+    const flip      = Math.random() < 0.5;
+    const [nL, nR]  = flip ? [pair.node2, pair.node1] : [pair.node1, pair.node2];
+    rows.push({
+      participant_id: profile.id, first_name: profile.firstName,
+      participant_type: profile.type, experiment_version: CONFIG.experimentVersion,
+      block_name: "block2", subblock_number: t.subBlock, trial_index: t.trialIndex,
+      task_type: "pairwise", mapping_condition: ctx.b2C,
+      trial_start_timestamp: now(), rt_ms: rt, timeout: timedOut ? 1 : 0,
+      response_key: rk, response_label: rl,
+      pair_id: pair.id,
+      left_node_label: nL.label, right_node_label: nR.label,
+      left_node_category: nL.category, right_node_category: nR.category,
+      left_stimulus_presented: pick(nL.stimuli), right_stimulus_presented: pick(nR.stimuli)
+    });
+  }
+
+  return { rows, nodeMap: ctx.nodeMap };
+}
+
+/* ================================================================
+   SUMMARIES
+================================================================ */
+
+function b1Summary(rows) {
+  const grp = {};
+  rows.filter(r => r.block_name === "block1").forEach(r => {
+    (grp[r.target_label] = grp[r.target_label] || []).push(r);
+  });
+  return Object.entries(grp).map(([lbl, gr]) => {
+    const good = gr.filter(r => r.response_label === "good");
+    const bad  = gr.filter(r => r.response_label === "bad");
+    const n    = gr.length;
+    return {
+      participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
+      target_label: lbl, target_category: gr[0].target_category,
+      n_trials: n, n_good: good.length, n_bad: bad.length,
+      prop_good: n ? round(good.length/n) : null, prop_bad: n ? round(bad.length/n) : null,
+      median_rt_all:  median(gr.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      median_rt_good: median(good.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      median_rt_bad:  median(bad.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      timeout_rate: n ? round(gr.filter(r=>r.timeout).length/n) : null,
+      mapping_condition: gr[0].mapping_condition
+    };
+  });
+}
+
+function b2Summary(rows, nodeMap) {
+  const grp = {};
+  rows.filter(r => r.block_name === "block2").forEach(r => {
+    (grp[r.pair_id] = grp[r.pair_id] || []).push(r);
+  });
+  return Object.entries(grp).map(([pid, gr]) => {
+    const tog = gr.filter(r => r.response_label === "together");
+    const ap  = gr.filter(r => r.response_label === "apart");
+    const n   = gr.length;
+    const [n1, n2] = pid.split(" | ");
+    return {
+      participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
+      pair_id: pid, node1_label: n1, node2_label: n2,
+      node1_category: (nodeMap[n1]||{}).category||"",
+      node2_category: (nodeMap[n2]||{}).category||"",
+      n_trials: n, n_together: tog.length, n_apart: ap.length,
+      prop_together: n ? round(tog.length/n) : null, prop_apart: n ? round(ap.length/n) : null,
+      median_rt_all:      median(gr.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      median_rt_together: median(tog.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      median_rt_apart:    median(ap.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      timeout_rate: n ? round(gr.filter(r=>r.timeout).length/n) : null,
+      mapping_condition: gr[0].mapping_condition
+    };
+  });
+}
+
+/* ================================================================
+   MAIN RUN
+================================================================ */
+
+let _allTrials, _b1Sum, _b2Sum;
+
+function runSimulation() {
+  const logEl = document.getElementById("log");
+  const btn   = document.getElementById("run-btn");
+  btn.disabled = true;
+  logEl.textContent = "";
+
+  const nTarget = Math.max(1, parseInt(document.getElementById("n-participants").value, 10) || 100);
+
+  /* Cycle profiles if nTarget > PROFILES.length */
+  const participantList = Array.from({ length: nTarget }, (_, idx) => {
+    const base = PROFILES[idx % PROFILES.length];
+    const pass = Math.floor(idx / PROFILES.length);
+    return pass === 0 ? base : { ...base, id: `${base.id}_r${pass}` };
+  });
+
+  function log(msg, cls = "") {
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent = msg + "\n";
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  log("═══ Simulation Start ═══════════════════════════════════", "hdr");
+  log(`Participants: ${nTarget}  ·  nodes/participant: ${CONFIG.nodesPerParticipant}  ·  B1: ${CONFIG.block1.repetitionsPerTarget} reps/target  ·  B2: ${CONFIG.block2.repetitionsPerPair} reps/pair\n`, "info");
+
+  const allTrials = [], allB1 = [], allB2 = [];
+
+  let i = 0;
+  function next() {
+    if (i >= participantList.length) { finish(); return; }
+    const p = participantList[i++];
+    const { rows, nodeMap } = runParticipant(p);
+    allTrials.push(...rows);
+
+    const b1s = b1Summary(rows);
+    const b2s = b2Summary(rows, nodeMap);
+    allB1.push(...b1s);
+    allB2.push(...b2s);
+
+    const b1r   = rows.filter(r => r.block_name === "block1");
+    const b2r   = rows.filter(r => r.block_name === "block2");
+    const b1tos = b1r.filter(r => r.timeout).length;
+    const b2tos = b2r.filter(r => r.timeout).length;
+    const b1med = median(b1r.filter(r => !r.timeout).map(r => r.rt_ms));
+    const b2med = median(b2r.filter(r => !r.timeout).map(r => r.rt_ms));
+
+    log(
+      `${p.id}  ${p.firstName.padEnd(10)} [${p.type.padEnd(26)}]  ` +
+      `B1: ${String(b1r.length).padStart(3)} trials, ${b1tos} TOs, med=${b1med}ms  ` +
+      `B2: ${String(b2r.length).padStart(3)} trials, ${b2tos} TOs, med=${b2med}ms`,
+      "ok"
+    );
+
+    setTimeout(next, 0);
+  }
+
+  function finish() {
+    _allTrials = allTrials;
+    _b1Sum     = allB1;
+    _b2Sum     = allB2;
+
+    const totalTO  = allTrials.filter(r => r.timeout).length;
+    const allRTs   = allTrials.filter(r => !r.timeout).map(r => r.rt_ms);
+    const medRT    = median(allRTs);
+    const b1Trials = allTrials.filter(r => r.block_name === "block1").length;
+    const b2Trials = allTrials.filter(r => r.block_name === "block2").length;
+
+    log("\n═══ Summary ═════════════════════════════════════════════", "hdr");
+    log(`Total participants : ${nTarget}`, "info");
+    log(`Total trials       : ${allTrials.length}  (B1: ${b1Trials}, B2: ${b2Trials})`, "info");
+    log(`Total timeouts     : ${totalTO} (${(totalTO/allTrials.length*100).toFixed(1)}%)`, "info");
+    log(`Overall median RT  : ${medRT} ms`, "info");
+    log(`\nData ready. Use download buttons below.`, "ok");
+
+    document.getElementById("downloads").classList.add("visible");
+    buildSummaryTable(allB1, allB2);
+    runAnalysis();
+    btn.disabled = false;
+    btn.textContent = "↺ Re-run Simulation";
+  }
+
+  setTimeout(next, 0);
+}
+
+/* ================================================================
+   SUMMARY TABLE (aggregated across participants)
+================================================================ */
+
+function buildSummaryTable(b1, b2) {
+  const b1Agg = {};
+  for (const r of b1) {
+    if (!b1Agg[r.target_label]) b1Agg[r.target_label] = { cat: r.target_category, vals: [] };
+    if (r.prop_good != null) b1Agg[r.target_label].vals.push(r.prop_good);
+  }
+
+  const b2Agg = {};
+  for (const r of b2) {
+    if (!b2Agg[r.pair_id]) b2Agg[r.pair_id] = { n1: r.node1_label, n2: r.node2_label, vals: [] };
+    if (r.prop_together != null) b2Agg[r.pair_id].vals.push(r.prop_together);
+  }
+
+  const avg = arr => arr.length ? (arr.reduce((a,b) => a+b, 0)/arr.length).toFixed(2) : "—";
+  const bar = (v, len=12) => {
+    const n = Math.round(v * len);
+    return "█".repeat(n) + "░".repeat(len - n);
+  };
+
+  let html = `<div class="hdr" style="margin-bottom:12px;color:#e8a030;">
+    Aggregate results (means across all participants)
+  </div>`;
+
+  html += `<div style="color:#5a9;margin-bottom:6px;font-size:0.8rem;">Block 1 — Evaluation (mean prop_good per target, sorted)</div>`;
+  html += `<table><tr><th>Target</th><th>Category</th><th>N participants</th><th>Mean prop_good</th><th>Bar</th></tr>`;
+  const b1Sorted = Object.entries(b1Agg).sort((a,b) => {
+    const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
+    const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
+    return mb - ma;
+  });
+  for (const [lbl, d] of b1Sorted) {
+    const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
+    html += `<tr><td>${lbl}</td><td>${d.cat}</td><td>${d.vals.length}</td><td>${m.toFixed(2)}</td><td style="color:#5a9;letter-spacing:-1px">${bar(m)}</td></tr>`;
+  }
+  html += `</table>`;
+
+  html += `<div style="color:#5a9;margin:18px 0 6px;font-size:0.8rem;">Block 2 — Association (mean prop_together per pair, top 30 sorted)</div>`;
+  html += `<table><tr><th>Node 1</th><th>Node 2</th><th>N participants</th><th>Mean prop_together</th><th>Bar</th></tr>`;
+  const b2Sorted = Object.entries(b2Agg)
+    .sort((a,b) => {
+      const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
+      const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
+      return mb - ma;
+    })
+    .slice(0, 30);
+  for (const [pid, d] of b2Sorted) {
+    const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
+    html += `<tr><td>${d.n1}</td><td>${d.n2}</td><td>${d.vals.length}</td><td>${m.toFixed(2)}</td><td style="color:#5a9;letter-spacing:-1px">${bar(m)}</td></tr>`;
+  }
+  html += `</table>`;
+
+  const box = document.getElementById("summary-box");
+  box.innerHTML = html;
+  box.classList.add("visible");
+}
+
+/* ================================================================
+   WIRE BUTTONS
+================================================================ */
+
+document.getElementById("run-btn").addEventListener("click", runSimulation);
+
+function downloadAll() {
+  const zip = makeZip([
+    { name: "all_trials.csv",            data: toCSV(_allTrials) },
+    { name: "all_trials.json",           data: JSON.stringify(_allTrials, null, 2) },
+    { name: "block1_target_summary.csv", data: toCSV(_b1Sum) },
+    { name: "block2_pair_summary.csv",   data: toCSV(_b2Sum) }
+  ]);
+  downloadFile(zip, "simulation_results.zip", "application/zip");
+}
+
+document.getElementById("dl-all").addEventListener("click", downloadAll);
+document.getElementById("dl-trials-csv").addEventListener("click", () =>
+  downloadFile(toCSV(_allTrials), "all_trials.csv", "text/csv"));
+document.getElementById("dl-trials-json").addEventListener("click", () =>
+  downloadFile(JSON.stringify(_allTrials, null, 2), "all_trials.json", "application/json"));
+document.getElementById("dl-b1").addEventListener("click", () =>
+  downloadFile(toCSV(_b1Sum), "block1_target_summary.csv", "text/csv"));
+document.getElementById("dl-b2").addEventListener("click", () =>
+  downloadFile(toCSV(_b2Sum), "block2_pair_summary.csv", "text/csv"));
+
+/* ================================================================
+   IN-BROWSER ANALYSIS & VISUALIZATION
+================================================================ */
+
+const EDGE_THRESHOLD    = 0.05;
+const MIN_N_PART        = 3;
+const CAT_COLORS = { identity:"#5b8dd9", policy:"#6ac46a", values:"#c97de8" };
+const DIR_COLORS = { together:"#27ae60", apart:"#e67e22" };
+
+function valenceColor(v) {
+  // negative (0) → red, neutral (0.5) → gray, positive (1) → blue
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  const rgb = (r, g, b) => `rgb(${r},${g},${b})`;
+  if (v < 0.5) {
+    const t = v / 0.5;
+    return rgb(lerp(192,120,t), lerp(57,120,t), lerp(43,120,t));
+  }
+  const t = (v - 0.5) / 0.5;
+  return rgb(lerp(120,58,t), lerp(120,130,t), lerp(120,196,t));
+}
+
+/* ── Aggregation ── */
+function aggB1(b1rows) {
+  const g = {};
+  for (const r of b1rows) {
+    if (!g[r.target_label]) g[r.target_label] = { cat: r.target_category, vals: [] };
+    if (r.prop_good != null) g[r.target_label].vals.push(r.prop_good);
+  }
+  return Object.entries(g).map(([label, d]) => ({
+    label, category: d.cat,
+    meanValence: d.vals.reduce((s,v)=>s+v,0) / d.vals.length,
+    n: d.vals.length
+  }));
+}
+
+function aggB2(b2rows) {
+  const g = {};
+  for (const r of b2rows) {
+    if (!g[r.pair_id]) g[r.pair_id] = {
+      n1: r.node1_label, n2: r.node2_label,
+      n1cat: r.node1_category, n2cat: r.node2_category, vals: []
+    };
+    if (r.prop_together != null) g[r.pair_id].vals.push(r.prop_together);
+  }
+  return Object.entries(g)
+    .filter(([,d]) => d.vals.length >= MIN_N_PART)
+    .map(([id, d]) => {
+      const mean = d.vals.reduce((s,v)=>s+v,0) / d.vals.length;
+      return { id, n1:d.n1, n2:d.n2, n1cat:d.n1cat, n2cat:d.n2cat,
+               meanAssoc:mean, centeredAssoc:mean-0.5,
+               assocStrength:Math.abs(mean-0.5), nPart:d.vals.length };
+    })
+    .filter(e => e.assocStrength >= EDGE_THRESHOLD);
+}
+
+/* ── Centrality ── */
+function computeCentrality(nodes, edges) {
+  const nm = {}; nodes.forEach(n => { nm[n.label]=n; n.strength=0; n.eigen=1; });
+  edges.forEach(e => {
+    if (nm[e.n1]) nm[e.n1].strength += e.assocStrength;
+    if (nm[e.n2]) nm[e.n2].strength += e.assocStrength;
+  });
+  const maxS = Math.max(...nodes.map(n=>n.strength)) || 1;
+  nodes.forEach(n => n.strengthNorm = n.strength / maxS);
+  // Power iteration for eigenvector
+  for (let i = 0; i < 60; i++) {
+    const nxt = {}; nodes.forEach(n => nxt[n.label]=0);
+    edges.forEach(e => {
+      if (nm[e.n1]&&nm[e.n2]) {
+        nxt[e.n1] += nm[e.n2].eigen * e.assocStrength;
+        nxt[e.n2] += nm[e.n1].eigen * e.assocStrength;
+      }
+    });
+    const maxE = Math.max(...Object.values(nxt)) || 1;
+    nodes.forEach(n => n.eigen = nxt[n.label] / maxE);
+  }
+}
+
+/* ── Force layout (Fruchterman-Reingold) ── */
+function forceLayout(nodes, edges, W, H) {
+  const cx=W/2, cy=H/2, pad=70;
+  nodes.forEach(n => {
+    n.x = cx + (Math.random()-0.5)*W*0.5;
+    n.y = cy + (Math.random()-0.5)*H*0.5;
+  });
+  const k = Math.sqrt(W*H/nodes.length)*0.75;
+  for (let iter=0; iter<350; iter++) {
+    const temp = (1-iter/350) * (W/7);
+    nodes.forEach(n => { n.dx=0; n.dy=0; });
+    // Repulsion
+    for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
+      const dx=nodes[i].x-nodes[j].x||0.01, dy=nodes[i].y-nodes[j].y||0.01;
+      const d=Math.sqrt(dx*dx+dy*dy)||0.01, f=k*k/d;
+      nodes[i].dx+=dx/d*f; nodes[i].dy+=dy/d*f;
+      nodes[j].dx-=dx/d*f; nodes[j].dy-=dy/d*f;
+    }
+    // Gravity toward center (stronger for "me")
+    nodes.forEach(n => {
+      const pull = n.label==="me" ? 0.08 : 0.012;
+      n.dx += (cx-n.x)*pull; n.dy += (cy-n.y)*pull;
+    });
+    // Attraction along positive-weight edges
+    edges.forEach(e => {
+      const s=nodes.find(n=>n.label===e.n1), t=nodes.find(n=>n.label===e.n2);
+      if (!s||!t) return;
+      const w=Math.max(e.centeredAssoc,0.01);
+      const dx=s.x-t.x, dy=s.y-t.y, d=Math.sqrt(dx*dx+dy*dy)||0.01;
+      const f=d*d/k*w*1.8;
+      s.dx-=dx/d*f; s.dy-=dy/d*f; t.dx+=dx/d*f; t.dy+=dy/d*f;
+    });
+    // Apply with cooling
+    nodes.forEach(n => {
+      const d=Math.sqrt(n.dx*n.dx+n.dy*n.dy)||0.01;
+      n.x+=n.dx/d*Math.min(d,temp); n.y+=n.dy/d*Math.min(d,temp);
+      n.x=Math.max(pad,Math.min(W-pad,n.x));
+      n.y=Math.max(pad,Math.min(H-pad,n.y));
+    });
+  }
+  // Translate so "me" is at center
+  const me = nodes.find(n=>n.label==="me");
+  if (me) {
+    const ox=cx-me.x, oy=cy-me.y;
+    nodes.forEach(n => {
+      n.x=Math.max(pad,Math.min(W-pad,n.x+ox));
+      n.y=Math.max(pad,Math.min(H-pad,n.y+oy));
+    });
+  }
+}
+
+/* ── Label helper: split long labels to two lines ── */
+function labelLines(label) {
+  if (label.length <= 9) return [label];
+  const words = label.split(" ");
+  if (words.length === 1) return [label.slice(0,9)+"…"];
+  const mid = Math.ceil(words.length/2);
+  return [words.slice(0,mid).join(" "), words.slice(mid).join(" ")];
+}
+
+/* ── SVG helpers ── */
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k,v);
+  return el;
+}
+function makeSVG(w,h) {
+  return svgEl("svg",{width:w,height:h,
+    style:`background:#0d1117;border-radius:6px;display:block;`});
+}
+
+/* ── Pan/zoom ── */
+function addZoom(svg) {
+  const g = document.createElementNS(SVG_NS,"g");
+  while (svg.firstChild) g.appendChild(svg.firstChild);
+  svg.appendChild(g);
+
+  let scale=1, tx=0, ty=0, dragging=false, x0, y0, tx0, ty0;
+  const apply = () => g.setAttribute("transform",`translate(${tx},${ty}) scale(${scale})`);
+
+  svg.addEventListener("wheel", e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const mx = e.clientX-r.left, my = e.clientY-r.top;
+    const d = e.deltaY > 0 ? 0.85 : 1/0.85;
+    tx = mx-(mx-tx)*d; ty = my-(my-ty)*d;
+    scale = Math.max(0.1, Math.min(20, scale*d));
+    apply();
+  }, {passive:false});
+
+  svg.addEventListener("mousedown", e => {
+    dragging=true; x0=e.clientX; y0=e.clientY; tx0=tx; ty0=ty;
+    svg.style.cursor="grabbing";
+  });
+  window.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    tx=tx0+(e.clientX-x0); ty=ty0+(e.clientY-y0); apply();
+  });
+  window.addEventListener("mouseup", () => { dragging=false; svg.style.cursor="grab"; });
+
+  svg.addEventListener("dblclick", () => { scale=1; tx=0; ty=0; apply(); });
+  svg.style.cursor = "grab";
+  svg.title = "Scroll to zoom · Drag to pan · Double-click to reset";
+}
+
+/* circle=identity, square=policy, diamond=values */
+function drawNodeShape(category, cx, cy, r, fill, stroke, sw) {
+  const attrs = { fill, stroke, "stroke-width": sw };
+  if (category === "identity") {
+    return svgEl("circle", { ...attrs, cx: cx.toFixed(1), cy: cy.toFixed(1), r: r.toFixed(1) });
+  } else if (category === "policy") {
+    return svgEl("rect", { ...attrs,
+      x: (cx-r).toFixed(1), y: (cy-r).toFixed(1),
+      width: (2*r).toFixed(1), height: (2*r).toFixed(1) });
+  } else { // values → diamond
+    const pts = `${cx.toFixed(1)},${(cy-r).toFixed(1)} ${(cx+r).toFixed(1)},${cy.toFixed(1)} `+
+                `${cx.toFixed(1)},${(cy+r).toFixed(1)} ${(cx-r).toFixed(1)},${cy.toFixed(1)}`;
+    return svgEl("polygon", { ...attrs, points: pts });
+  }
+}
+
+/* ── Render: Network ── */
+function renderNetwork(nodes, edges) {
+  const W=880, H=580;
+  const ln = nodes.map(n=>({...n}));
+  forceLayout(ln, edges, W, H);
+  const nm={}; ln.forEach(n=>nm[n.label]=n);
+  const svg = makeSVG(W,H);
+
+  // Edges
+  edges.forEach(e => {
+    const s=nm[e.n1], t=nm[e.n2]; if(!s||!t) return;
+    svg.appendChild(svgEl("line",{
+      x1:s.x.toFixed(1),y1:s.y.toFixed(1),x2:t.x.toFixed(1),y2:t.y.toFixed(1),
+      stroke: e.centeredAssoc>=0 ? DIR_COLORS.together : DIR_COLORS.apart,
+      "stroke-width": (0.8+e.assocStrength*14).toFixed(1),
+      "stroke-opacity": Math.min(0.2+e.assocStrength*1.6,0.9).toFixed(2),
+      "stroke-linecap":"round"
+    }));
+  });
+
+  // Nodes
+  ln.forEach(n => {
+    const r = 13+n.strengthNorm*11;
+    const g = document.createElementNS(SVG_NS,"g");
+    g.appendChild(drawNodeShape(n.category, n.x, n.y, r,
+      valenceColor(n.meanValence), "#33394a", "1.5"));
+    const lines = labelLines(n.label);
+    const baseY = n.y + r + 11;
+    lines.forEach((txt,i) => {
+      const t = document.createElementNS(SVG_NS,"text");
+      Object.entries({"x":n.x.toFixed(1),"y":(baseY+i*12).toFixed(1),
+        "text-anchor":"middle","font-size":"8.5",
+        "font-family":"sans-serif","fill":"#ddd","font-weight":"bold"})
+        .forEach(([k,v])=>t.setAttribute(k,v));
+      t.textContent = txt;
+      g.appendChild(t);
+    });
+    svg.appendChild(g);
+  });
+
+  // Legend — lower-right
+  const lgW=172, lgH=188;
+  const lg = document.createElementNS(SVG_NS,"g");
+  lg.setAttribute("transform",`translate(${W-lgW-10},${H-lgH-10})`);
+  lg.appendChild(svgEl("rect",{width:lgW,height:lgH,rx:4,fill:"#1a1f2e",opacity:0.93}));
+  // Valence gradient
+  for (let i=0;i<90;i++) {
+    lg.appendChild(svgEl("rect",{x:10+i*1.68,y:12,width:1.75,height:8,fill:valenceColor(i/89)}));
+  }
+  [["Negative",10,"start"],["Positive",lgW-10,"end"]].forEach(([lbl,x,anchor])=>{
+    const t=document.createElementNS(SVG_NS,"text");
+    Object.entries({"x":x,"y":28,"font-size":"8","font-family":"sans-serif",
+      "fill":"#888","text-anchor":anchor}).forEach(([k,v])=>t.setAttribute(k,v));
+    t.textContent=lbl; lg.appendChild(t);
+  });
+  // Shape key
+  [["identity","circle","Identity"],["policy","square","Policy"],["values","diamond","Values"]].forEach(([cat,,lbl],i)=>{
+    const cy=50+i*22, cx=18;
+    lg.appendChild(drawNodeShape(cat, cx, cy, 8, "#555", "#aaa", "1.5"));
+    const t=document.createElementNS(SVG_NS,"text");
+    Object.entries({"x":34,"y":cy+4,"font-size":"9","font-family":"sans-serif","fill":"#ccc"})
+      .forEach(([k,v])=>t.setAttribute(k,v));
+    t.textContent=lbl; lg.appendChild(t);
+  });
+  // Edge key
+  [["together","go together"],["apart","do not go together"]].forEach(([dir,lbl],i)=>{
+    const y2=120+i*22;
+    lg.appendChild(svgEl("line",{x1:10,y1:y2,x2:32,y2:y2,stroke:DIR_COLORS[dir],"stroke-width":2.5}));
+    const t=document.createElementNS(SVG_NS,"text");
+    Object.entries({"x":38,"y":y2+4,"font-size":"9","font-family":"sans-serif","fill":"#ccc"})
+      .forEach(([k,v])=>t.setAttribute(k,v));
+    t.textContent=lbl; lg.appendChild(t);
+  });
+  svg.appendChild(lg);
+  addZoom(svg);
+  document.getElementById("viz-network").replaceChildren(svg);
+}
+
+/* ── Render: Valence bar chart ── */
+function renderValenceChart(nodes) {
+  const sorted = [...nodes].sort((a,b)=>b.meanValence-a.meanValence);
+  const bH=24, L=190, R=70, T=10, B=24;
+  const W=700, maxW=W-L-R, H=T+sorted.length*bH+B;
+  const svg=makeSVG(W,H);
+
+  // Grid lines
+  [0,0.25,0.5,0.75,1].forEach(v=>{
+    const x=L+v*maxW;
+    svg.appendChild(svgEl("line",{x1:x,y1:T,x2:x,y2:H-B,stroke:v===0.5?"#444":"#1e1e1e","stroke-width":v===0.5?1:0.8,"stroke-dasharray":v===0.5?"5,3":""}));
+    const t=document.createElementNS(SVG_NS,"text");
+    Object.entries({x,y:H-B+14,"text-anchor":"middle","font-size":"9","font-family":"sans-serif","fill":"#555"})
+      .forEach(([k,v2])=>t.setAttribute(k,v2));
+    t.textContent=v.toFixed(2); svg.appendChild(t);
+  });
+
+  sorted.forEach((n,i)=>{
+    const y=T+i*bH, bw=n.meanValence*maxW;
+    svg.appendChild(svgEl("rect",{x:L,y:y+3,width:bw.toFixed(1),height:bH-6,
+      fill:valenceColor(n.meanValence),rx:2}));
+    svg.appendChild(svgEl("rect",{x:L,y:y+3,width:bw.toFixed(1),height:bH-6,
+      fill:"none",stroke:CAT_COLORS[n.category]||"#aaa","stroke-width":1.5,rx:2}));
+    const tLabel=document.createElementNS(SVG_NS,"text");
+    Object.entries({x:L-7,y:y+bH/2+1,"text-anchor":"end","dominant-baseline":"middle",
+      "font-size":"10","font-family":"sans-serif","fill":"#ccc"})
+      .forEach(([k,v])=>tLabel.setAttribute(k,v));
+    tLabel.textContent=n.label; svg.appendChild(tLabel);
+    const tVal=document.createElementNS(SVG_NS,"text");
+    Object.entries({x:L+bw+6,y:y+bH/2+1,"dominant-baseline":"middle",
+      "font-size":"9","font-family":"sans-serif","fill":"#888"})
+      .forEach(([k,v])=>tVal.setAttribute(k,v));
+    tVal.textContent=n.meanValence.toFixed(2); svg.appendChild(tVal);
+  });
+  addZoom(svg);
+  document.getElementById("viz-valence").replaceChildren(svg);
+}
+
+/* ── Render: Me connections ── */
+function renderMeChart(edges, nodes) {
+  const valMap={}; nodes.forEach(n=>valMap[n.label]=n);
+  const me = edges.filter(e=>e.n1==="me"||e.n2==="me").map(e=>({
+    other: e.n1==="me"?e.n2:e.n1,
+    cat:   e.n1==="me"?e.n2cat:e.n1cat,
+    centered: e.centeredAssoc, mean: e.meanAssoc, str: e.assocStrength
+  })).sort((a,b)=>b.centered-a.centered);
+
+  if (!me.length) { document.getElementById("viz-me").innerHTML='<p style="color:#555;padding:16px">No me-edges above threshold.</p>'; return; }
+
+  const bH=24, L=200, R=70, T=10, B=28, maxAbs=0.5;
+  const W=700, halfW=(W-L-R)/2, midX=L+halfW, H=T+me.length*bH+B;
+  const svg=makeSVG(W,H);
+
+  [-0.5,-0.25,0,0.25,0.5].forEach(v=>{
+    const x=midX+(v/maxAbs)*halfW;
+    svg.appendChild(svgEl("line",{x1:x,y1:T,x2:x,y2:H-B,
+      stroke:v===0?"#555":"#1e1e1e","stroke-width":v===0?1.5:0.8,
+      "stroke-dasharray":v===0?"5,3":""}));
+    const t=document.createElementNS(SVG_NS,"text");
+    Object.entries({x,y:H-B+14,"text-anchor":"middle","font-size":"9",
+      "font-family":"sans-serif","fill":"#555"})
+      .forEach(([k,v2])=>t.setAttribute(k,v2));
+    t.textContent=(v>0?"+":"")+v.toFixed(2); svg.appendChild(t);
+  });
+
+  me.forEach((e,i)=>{
+    const y=T+i*bH, bw=(e.str/maxAbs)*halfW;
+    const x=e.centered>=0?midX:midX-bw;
+    svg.appendChild(svgEl("rect",{x:x.toFixed(1),y:y+3,width:bw.toFixed(1),height:bH-6,
+      fill:e.centered>=0?DIR_COLORS.together:DIR_COLORS.apart,opacity:0.85,rx:2}));
+    svg.appendChild(svgEl("rect",{x:x.toFixed(1),y:y+3,width:bw.toFixed(1),height:bH-6,
+      fill:"none",stroke:CAT_COLORS[e.cat]||"#aaa","stroke-width":1.5,rx:2}));
+    const tL=document.createElementNS(SVG_NS,"text");
+    Object.entries({x:midX-8,y:y+bH/2+1,"text-anchor":"end","dominant-baseline":"middle",
+      "font-size":"10","font-family":"sans-serif","fill":"#ccc"})
+      .forEach(([k,v])=>tL.setAttribute(k,v));
+    tL.textContent=e.other; svg.appendChild(tL);
+    const valX=e.centered>=0?midX+bw+6:x-6;
+    const tV=document.createElementNS(SVG_NS,"text");
+    Object.entries({x:valX.toFixed(1),y:y+bH/2+1,
+      "text-anchor":e.centered>=0?"start":"end","dominant-baseline":"middle",
+      "font-size":"9","font-family":"sans-serif","fill":"#888"})
+      .forEach(([k,v])=>tV.setAttribute(k,v));
+    tV.textContent=e.mean.toFixed(2); svg.appendChild(tV);
+  });
+
+  // Axis labels
+  [["← do not go together",midX-halfW/2,DIR_COLORS.apart],
+   ["go together →",midX+halfW/2,DIR_COLORS.together]].forEach(([txt,x,col])=>{
+    const t=document.createElementNS(SVG_NS,"text");
+    Object.entries({x,y:H-2,"text-anchor":"middle","font-size":"9",
+      "font-family":"sans-serif","fill":col})
+      .forEach(([k,v])=>t.setAttribute(k,v));
+    t.textContent=txt; svg.appendChild(t);
+  });
+  addZoom(svg);
+  document.getElementById("viz-me").replaceChildren(svg);
+}
+
+/* ── Render: Centrality table ── */
+function renderCentralityTable(nodes) {
+  const sorted=[...nodes].sort((a,b)=>b.strengthNorm-a.strengthNorm);
+  const rows=sorted.map(n=>`<tr>
+    <td>${n.label}</td>
+    <td style="color:${CAT_COLORS[n.category]||'#aaa'}">${n.category}</td>
+    <td>${n.strengthNorm.toFixed(3)}</td>
+    <td>${n.eigen.toFixed(3)}</td>
+    <td>${n.meanValence.toFixed(3)}</td>
+  </tr>`).join("");
+  document.getElementById("viz-centrality").innerHTML=`
+    <table style="max-width:600px">
+      <tr><th>Node</th><th>Category</th><th>Strength</th><th>Eigenvector</th><th>Valence</th></tr>
+      ${rows}
+    </table>`;
+}
+
+/* ── Political camp mapping ── */
+const CAMP_MAP = {
+  strong_progressive:     "Liberal",
+  moderate_progressive:   "Liberal",
+  moderate_democrat:      "Liberal",
+  union_democrat:         "Liberal",
+  liberal:                "Liberal",
+  centrist_independent:   "Centrist",
+  libertarian:            "Centrist",
+  economic_populist:      "Centrist",
+  older_moderate:         "Centrist",
+  moderate_republican:    "Conservative",
+  suburban_republican:    "Conservative",
+  business_republican:    "Conservative",
+  never_trump_republican: "Conservative",
+  conservative_republican:"Conservative",
+  evangelical_republican: "Conservative",
+  gun_rights_voter:       "Conservative",
+  maga_republican:        "Conservative",
+  conservative:           "Conservative",
+  maga:                   "Conservative"
+};
+
+/* ── Render one group network, returns SVG element ── */
+function renderGroupNetwork(camp, b1rows, b2rows) {
+  const pids = new Set(
+    b1rows.filter(r => CAMP_MAP[r.participant_type] === camp)
+          .map(r => r.participant_id)
+  );
+  if (pids.size < 2) return null;
+
+  const campB1 = b1rows.filter(r => pids.has(r.participant_id));
+  const campB2 = b2rows.filter(r => pids.has(r.participant_id));
+
+  const nodeData = aggB1(campB1);
+  const edgeData = aggB2(campB2);
+  if (!edgeData.length) return null;
+
+  const active = new Set(edgeData.flatMap(e=>[e.n1,e.n2]));
+  const nodes  = nodeData.filter(n=>active.has(n.label));
+  computeCentrality(nodes, edgeData);
+
+  const W=880, H=420;
+  const ln = nodes.map(n=>({...n}));
+  forceLayout(ln, edgeData, W, H);
+  const nm={}; ln.forEach(n=>nm[n.label]=n);
+
+  const svg = makeSVG(W, H+36); // extra height for title
+
+  // Camp title
+  const campColors = { Liberal:"#5b8dd9", Centrist:"#e8a030", Conservative:"#d45f3c" };
+  const title = document.createElementNS(SVG_NS,"text");
+  Object.entries({x:W/2, y:20, "text-anchor":"middle", "font-size":"13",
+    "font-weight":"bold", "font-family":"sans-serif", fill:campColors[camp]||"#ccc"})
+    .forEach(([k,v])=>title.setAttribute(k,v));
+  title.textContent = `${camp}  (n = ${pids.size})`;
+  svg.appendChild(title);
+
+  // Shift all node rendering down by 36px
+  const oy = 36;
+
+  // Edges
+  edgeData.forEach(e => {
+    const s=nm[e.n1], t=nm[e.n2]; if(!s||!t) return;
+    svg.appendChild(svgEl("line",{
+      x1:s.x.toFixed(1), y1:(s.y+oy).toFixed(1),
+      x2:t.x.toFixed(1), y2:(t.y+oy).toFixed(1),
+      stroke: e.centeredAssoc>=0 ? DIR_COLORS.together : DIR_COLORS.apart,
+      "stroke-width": (0.8+e.assocStrength*14).toFixed(1),
+      "stroke-opacity": Math.min(0.2+e.assocStrength*1.6, 0.9).toFixed(2),
+      "stroke-linecap":"round"
+    }));
+  });
+
+  // Nodes
+  ln.forEach(n => {
+    const r=12+n.strengthNorm*10;
+    const g=document.createElementNS(SVG_NS,"g");
+    g.appendChild(drawNodeShape(n.category, n.x, n.y+oy, r,
+      valenceColor(n.meanValence), "#33394a", "1.5"));
+    const lines=labelLines(n.label);
+    const baseY=n.y+oy+r+11;
+    lines.forEach((txt,i)=>{
+      const t=document.createElementNS(SVG_NS,"text");
+      Object.entries({x:n.x.toFixed(1), y:(baseY+i*12).toFixed(1),
+        "text-anchor":"middle","font-size":"8","font-family":"sans-serif",
+        "fill":"#ddd","font-weight":"bold"})
+        .forEach(([k,v])=>t.setAttribute(k,v));
+      t.textContent=txt; g.appendChild(t);
+    });
+    svg.appendChild(g);
+  });
+
+  addZoom(svg);
+  return svg;
+}
+
+/* ── Render: all group networks ── */
+function renderGroupNetworks() {
+  const container = document.getElementById("viz-groups");
+  container.replaceChildren();
+  ["Liberal","Centrist","Conservative"].forEach(camp => {
+    const svg = renderGroupNetwork(camp, _b1Sum, _b2Sum);
+    if (svg) {
+      container.appendChild(svg);
+      container.appendChild(Object.assign(document.createElement("div"),
+        {style:"height:24px"}));
+    }
+  });
+}
+
+/* ── Collapsible section toggle ── */
+function openSection(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (el) el.classList.add("open");
+}
+function toggleSection(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (el) el.classList.toggle("open");
+}
+let _togglesSetup = false;
+function setupToggles() {
+  if (_togglesSetup) return;
+  _togglesSetup = true;
+  document.querySelectorAll(".viz-section h3.viz-toggle").forEach(h3 => {
+    h3.addEventListener("click", () => h3.closest(".viz-section").classList.toggle("open"));
+  });
+  document.querySelectorAll("#viz-nav a").forEach(a => {
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      const target = document.querySelector(a.getAttribute("href"));
+      if (target) {
+        target.classList.add("open");
+        setTimeout(() => target.scrollIntoView({behavior:"smooth",block:"start"}), 30);
+      }
+    });
+  });
+}
+
+/* ── Main entry point ── */
+function runAnalysis() {
+  document.getElementById("viz-nav").style.display = "flex";
+  setupToggles();
+
+  const nodeData = aggB1(_b1Sum);
+  const edgeData = aggB2(_b2Sum);
+  const active   = new Set(edgeData.flatMap(e=>[e.n1,e.n2]));
+  const activeNodes = nodeData.filter(n=>active.has(n.label));
+
+  computeCentrality(activeNodes, edgeData);
+  renderNetwork(activeNodes, edgeData);
+  renderValenceChart(nodeData);
+  renderMeChart(edgeData, nodeData);
+  renderGroupNetworks();
+  renderCentralityTable(activeNodes);
+}
+</script>
+</body>
+</html>

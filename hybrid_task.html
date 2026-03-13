@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evaluation & Association Task</title>
+<style>
+/* ================================================================
+   RESET & BASE
+================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #111;
+  --fg: #f0f0f0;
+  --muted: #888;
+  --accent: #3a9;
+  --warn: #e8a030;
+  --panel: #1e1e1e;
+  --border: #333;
+}
+
+body {
+  font-family: 'Georgia', serif;
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 20px;
+}
+
+/* ================================================================
+   CORNER KEY LABELS
+================================================================ */
+.key-label {
+  position: fixed;
+  top: 22px;
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  display: none;
+}
+.key-label.left  { left: 28px; }
+.key-label.right { right: 28px; }
+.key-label.visible { display: block; }
+
+/* ================================================================
+   PROGRESS
+================================================================ */
+#progress-bar-wrap {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 5px;
+  background: #222;
+  display: none;
+}
+#progress-bar-wrap.visible { display: block; }
+#progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.18s; }
+
+#progress-text {
+  position: fixed;
+  bottom: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  color: #555;
+  display: none;
+  white-space: nowrap;
+}
+#progress-text.visible { display: block; }
+
+/* ================================================================
+   FULLSCREEN WARNING OVERLAY
+================================================================ */
+#fs-warning {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.94);
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  text-align: center;
+  padding: 40px;
+}
+#fs-warning.visible { display: flex; }
+#fs-warning h2 { color: var(--warn); font-size: 1.6rem; font-weight: normal; }
+
+/* ================================================================
+   SCREENS
+================================================================ */
+.screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 720px;
+  width: 100%;
+  text-align: center;
+  gap: 22px;
+}
+.screen.active { display: flex; }
+
+h1 { font-size: 2rem; font-weight: normal; letter-spacing: 0.04em; }
+h2 { font-size: 1.5rem; font-weight: normal; color: #ccc; }
+p  { font-size: 1.05rem; line-height: 1.75; color: #ccc; max-width: 640px; }
+.small { font-size: 0.88rem; color: var(--muted); }
+.tag  { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase;
+        color: var(--muted); }
+
+hr { border: none; border-top: 1px solid var(--border); width: 80%; }
+
+/* ================================================================
+   BUTTONS & INPUTS
+================================================================ */
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 12px 36px;
+  font-size: 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  font-family: inherit;
+  margin-top: 4px;
+}
+button:hover { filter: brightness(1.15); }
+button.sec { background: #444; }
+button.sec:hover { background: #666; }
+
+.btn-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+
+input[type="text"] {
+  background: #222;
+  border: 1px solid #444;
+  color: var(--fg);
+  padding: 10px 16px;
+  font-size: 1.05rem;
+  border-radius: 4px;
+  width: 280px;
+  text-align: center;
+  font-family: inherit;
+}
+input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+label { font-size: 0.95rem; color: #bbb; }
+
+.field { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+
+/* ================================================================
+   KEY DEMO
+================================================================ */
+.key-demo {
+  display: flex;
+  gap: 60px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.key-box { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.key-cap {
+  width: 68px; height: 68px;
+  border: 3px solid #444;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: bold;
+  background: #1e1e1e;
+}
+.key-meaning { font-size: 0.9rem; color: #aaa; max-width: 130px; line-height: 1.35; }
+#key-practice-status { min-height: 1.4em; color: var(--warn); font-size: 0.95rem; }
+
+/* ================================================================
+   TRIAL AREA
+================================================================ */
+#fixation     { font-size: 3rem; color: #666; display: none; }
+#feedback-msg { font-size: 1.15rem; color: var(--warn); min-height: 1.5em; }
+
+/* Block 1: single stimulus */
+#single-stimulus {
+  font-size: 2.4rem;
+  font-weight: bold;
+  color: var(--fg);
+  display: none;
+  max-width: 500px;
+  line-height: 1.3;
+}
+
+/* Block 2: pair stimulus */
+#pair-stimulus {
+  display: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 50px;
+  width: 100%;
+}
+.pair-word {
+  font-size: 2.1rem;
+  font-weight: bold;
+  color: var(--fg);
+  max-width: 300px;
+  line-height: 1.3;
+  text-align: center;
+}
+.pair-divider { font-size: 1.8rem; color: #444; flex-shrink: 0; }
+
+/* ================================================================
+   BREAK / INFO PANELS
+================================================================ */
+.block-badge {
+  font-size: 0.78rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+/* ================================================================
+   DEBRIEF DOWNLOAD
+================================================================ */
+.dl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+@media (max-width: 500px) { .dl-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Corner key labels -->
+  <div class="key-label left"  id="key-left"></div>
+  <div class="key-label right" id="key-right"></div>
+
+  <!-- Progress -->
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="progress-text"></div>
+
+  <!-- Fullscreen re-entry overlay -->
+  <div id="fs-warning">
+    <h2>Please return to fullscreen</h2>
+    <p>This task requires fullscreen mode. Click below to continue.</p>
+    <button id="fs-reenter-btn">Return to Fullscreen</button>
+  </div>
+
+  <!-- ============================================================
+       S01 — WELCOME
+  ============================================================ -->
+  <div class="screen active" id="s-welcome">
+    <h1>Evaluation &amp; Association Study</h1>
+    <p>
+      In this study you will complete two short computer tasks involving everyday words and concepts.
+      You will respond using only the keyboard.
+    </p>
+    <p>
+      Your participation is voluntary and your responses are anonymous.
+      The full task takes approximately <strong>10–15 minutes</strong>.
+    </p>
+    <p class="small">By clicking "Begin" you agree to participate in this study.</p>
+    <button id="btn-welcome">Begin</button>
+  </div>
+
+  <!-- ============================================================
+       S02 — PARTICIPANT INFO
+  ============================================================ -->
+  <div class="screen" id="s-info">
+    <h2>Participant Information</h2>
+    <div class="field" id="pid-field">
+      <label for="pid-input">Participant ID (or leave blank for auto-generated ID)</label>
+      <input type="text" id="pid-input" placeholder="e.g. P001" autocomplete="off">
+    </div>
+    <div class="field" id="fname-field">
+      <label for="fname-input">Your first name (used to personalize some items)</label>
+      <input type="text" id="fname-input" placeholder="e.g. Alex" autocomplete="off">
+    </div>
+    <button id="btn-info">Continue</button>
+  </div>
+
+  <!-- ============================================================
+       S03 — GENERAL INSTRUCTIONS
+  ============================================================ -->
+  <div class="screen" id="s-general-instr">
+    <div class="tag">Overview</div>
+    <h2>What you will do</h2>
+    <p>
+      This study has <strong>two parts</strong>:
+    </p>
+    <p>
+      <strong>Part 1 — Evaluation:</strong> You will see <em>one word or phrase</em> at a time
+      and quickly press a key to indicate whether it feels <strong>good</strong> or <strong>bad</strong> to you.
+    </p>
+    <p>
+      <strong>Part 2 — Association:</strong> You will see <em>two words or phrases</em> at a time
+      and quickly press a key to indicate whether they <strong>go together</strong> or
+      <strong>do not go together</strong> in your mind.
+    </p>
+    <p>
+      There are <strong>no right or wrong answers</strong> in either part.
+      Please respond as <strong>quickly and instinctively</strong> as you can.
+    </p>
+    <button id="btn-general-instr">Continue to Part 1</button>
+  </div>
+
+  <!-- ============================================================
+       S04 — BLOCK 1 INSTRUCTIONS
+  ============================================================ -->
+  <div class="screen" id="s-b1-instr">
+    <div class="tag">Part 1 — Evaluation</div>
+    <h2>Instructions</h2>
+    <p>
+      You will see <strong>one item</strong> appear on the screen. Your task is to indicate
+      whether that item feels <strong>GOOD</strong> or <strong>BAD</strong> to you.
+    </p>
+    <p>
+      There are no right or wrong answers. We are interested in your immediate gut feeling.
+      Please respond as <strong>quickly and intuitively</strong> as you can.
+    </p>
+    <p>
+      You must respond within <strong id="b1-deadline-display"></strong> seconds or the trial
+      will time out and you will be asked to respond faster.
+    </p>
+    <button id="btn-b1-instr">Continue to Key Practice</button>
+  </div>
+
+  <!-- ============================================================
+       S05 — BLOCK 1 KEY PRACTICE
+  ============================================================ -->
+  <div class="screen" id="s-b1-keys">
+    <div class="tag">Part 1 — Key Practice</div>
+    <h2>Learn the Keys</h2>
+    <div class="key-demo" id="b1-key-demo"></div>
+    <p>Press each key once to practice the response mapping.</p>
+    <div id="key-practice-status"></div>
+  </div>
+
+  <!-- ============================================================
+       S06 — BLOCK 1 PRACTICE START
+  ============================================================ -->
+  <div class="screen" id="s-b1-prac-start">
+    <div class="tag">Part 1 — Practice</div>
+    <h2>Practice Round</h2>
+    <p>
+      You will now complete a few <strong>practice trials</strong> with simple everyday words,
+      so you can get used to the task.
+    </p>
+    <p>Press <strong>SPACE</strong> to begin practice.</p>
+  </div>
+
+  <!-- ============================================================
+       S07 — BLOCK 1 PRACTICE END
+  ============================================================ -->
+  <div class="screen" id="s-b1-prac-end">
+    <div class="tag">Part 1 — Practice Complete</div>
+    <h2>Ready for Part 1</h2>
+    <p>Great job! The real trials will now begin. The items will be real concepts.</p>
+    <p>Remember: respond <strong>quickly and intuitively</strong>. There are no right or wrong answers.</p>
+    <p>Press <strong>SPACE</strong> to begin.</p>
+  </div>
+
+  <!-- ============================================================
+       S08 — BLOCK 1 SUB-BLOCK BREAK
+  ============================================================ -->
+  <div class="screen" id="s-b1-break">
+    <div class="block-badge" id="b1-break-badge"></div>
+    <h2>Take a Short Break</h2>
+    <p>Rest for a moment. When you are ready, press <strong>SPACE</strong> to continue Part 1.</p>
+  </div>
+
+  <!-- ============================================================
+       S09 — BETWEEN BLOCKS BREAK
+  ============================================================ -->
+  <div class="screen" id="s-mid-break">
+    <div class="block-badge">Part 1 Complete</div>
+    <h2>Short Break</h2>
+    <p>You have finished the evaluation task. Take a moment to rest.</p>
+    <p>Part 2 will begin shortly. Press <strong>SPACE</strong> when you are ready.</p>
+  </div>
+
+  <!-- ============================================================
+       S10 — BLOCK 2 INSTRUCTIONS
+  ============================================================ -->
+  <div class="screen" id="s-b2-instr">
+    <div class="tag">Part 2 — Association</div>
+    <h2>Instructions</h2>
+    <p>
+      You will see <strong>two items</strong> appear side-by-side on the screen.
+      Your task is to indicate whether these two things <strong>go together</strong> in your mind
+      or <strong>do not go together</strong>.
+    </p>
+    <p>
+      There are no right or wrong answers. We are simply interested in your gut feeling —
+      how mentally connected or associated the two items seem to you.
+    </p>
+    <p>
+      Please respond as <strong>quickly and instinctively</strong> as you can.
+      You must respond within <strong id="b2-deadline-display"></strong> seconds.
+    </p>
+    <button id="btn-b2-instr">Continue to Key Practice</button>
+  </div>
+
+  <!-- ============================================================
+       S11 — BLOCK 2 KEY PRACTICE
+  ============================================================ -->
+  <div class="screen" id="s-b2-keys">
+    <div class="tag">Part 2 — Key Practice</div>
+    <h2>Learn the Keys</h2>
+    <div class="key-demo" id="b2-key-demo"></div>
+    <p>Press each key once to practice the response mapping.</p>
+    <div id="b2-key-practice-status"></div>
+  </div>
+
+  <!-- ============================================================
+       S12 — BLOCK 2 PRACTICE START
+  ============================================================ -->
+  <div class="screen" id="s-b2-prac-start">
+    <div class="tag">Part 2 — Practice</div>
+    <h2>Practice Round</h2>
+    <p>
+      You will now complete a few <strong>practice trials</strong> with simple everyday pairs,
+      so you can get used to responding with "go together" or "do not go together."
+    </p>
+    <p>Press <strong>SPACE</strong> to begin practice.</p>
+  </div>
+
+  <!-- ============================================================
+       S13 — BLOCK 2 PRACTICE END
+  ============================================================ -->
+  <div class="screen" id="s-b2-prac-end">
+    <div class="tag">Part 2 — Practice Complete</div>
+    <h2>Ready for Part 2</h2>
+    <p>
+      Great job! The real trials will now begin. The items will be real concepts —
+      groups, policies, and self-related words.
+    </p>
+    <p>Remember: respond <strong>quickly and instinctively</strong>.</p>
+    <p>Press <strong>SPACE</strong> to begin.</p>
+  </div>
+
+  <!-- ============================================================
+       S14 — BLOCK 2 SUB-BLOCK BREAK
+  ============================================================ -->
+  <div class="screen" id="s-b2-break">
+    <div class="block-badge" id="b2-break-badge"></div>
+    <h2>Take a Short Break</h2>
+    <p>Rest for a moment. When you are ready, press <strong>SPACE</strong> to continue Part 2.</p>
+  </div>
+
+  <!-- ============================================================
+       S15 — TRIAL DISPLAY (shared by both blocks)
+  ============================================================ -->
+  <div class="screen" id="s-trial">
+    <div id="fixation">+</div>
+    <div id="single-stimulus"></div>
+    <div id="pair-stimulus">
+      <div class="pair-word" id="pair-left"></div>
+      <div class="pair-divider">&amp;</div>
+      <div class="pair-word" id="pair-right"></div>
+    </div>
+    <div id="feedback-msg"></div>
+  </div>
+
+  <!-- ============================================================
+       S16 — DEBRIEF / DOWNLOADS
+  ============================================================ -->
+  <div class="screen" id="s-debrief">
+    <h1>Thank You!</h1>
+    <p>
+      You have completed both parts of the study. This research examines how people
+      evaluate individual concepts and perceive associations between them.
+    </p>
+    <p id="debrief-stats" class="small"></p>
+    <hr>
+    <p style="margin-top:4px;">Download your data:</p>
+    <div class="dl-grid">
+      <button id="dl-trial-csv">Trial Data (CSV)</button>
+      <button id="dl-trial-json">Trial Data (JSON)</button>
+      <button id="dl-b1-summary">Part 1 Summary (CSV)</button>
+      <button id="dl-b2-summary">Part 2 Summary (CSV)</button>
+    </div>
+    <p class="small">If you have any questions about this study, please contact the researcher.</p>
+  </div>
+
+</div><!-- #app -->
+
+<script>
+"use strict";
+/* ================================================================
+   CONFIGURATION — edit everything here
+================================================================ */
+const CONFIG = {
+
+  /* ---- Participant options ---- */
+  participantIdPrompt : true,
+  askFirstName        : true,
+
+  /* ---- Display ---- */
+  fullscreen        : true,
+  fullscreenWarning : true,
+
+  /* ---- Experiment version tag (saved in data) ---- */
+  experimentVersion : "1.0.0",
+
+  /* ---- Timings (ms) ---- */
+  timings: {
+    fixationMs         : 500,
+    blankMs            : 100,
+    block1DeadlineMs   : 1500,
+    block2DeadlineMs   : 2000,
+    itiMs              : 250,
+    timeoutFeedbackMs  : 500
+  },
+
+  /* ---- Block 1 settings ---- */
+  block1: {
+    enabled              : true,
+    repetitionsPerTarget : 4,    // total reps across all sub-blocks → 10 nodes × 4 = 40 B1 trials
+    subBlocks            : 2,    // how many sub-blocks to split Block 1 into
+    keyMappingMode       : "counterbalance", // "fixed" or "counterbalance"
+    fixedMapping         : { good: "e", bad: "i" }
+  },
+
+  /* ---- Block 2 settings ---- */
+  block2: {
+    enabled               : true,
+    repetitionsPerPair    : 1,    // reps for non-self pairs  → 36 pairs × 1 = 36 B2 trials
+    repetitionsPerMePair  : 2,    // reps for pairs involving the self node → 9 × 2 = 18
+    subBlocks             : 2,    // must divide both rep counts evenly
+    keyMappingMode        : "counterbalance",
+    fixedMapping          : { together: "e", apart: "i" }
+    // pairMode is always "all" within each participant's selected node set
+  },
+
+  // Each participant sees this many nodes (me is always one of them).
+  // The rest are drawn randomly from the full pool of 20 nodes below.
+  // With 10 nodes: 40 B1 + (9 me-pairs × 2 + 36 other-pairs × 1) = 94 trials total.
+  nodesPerParticipant : 10,
+
+  /* ---- Full node pool (20 nodes: 10 identity, 5 policy, 5 values) ---- */
+  // Only `nodesPerParticipant` of these are shown to any given participant.
+  // "me" (alwaysInclude: true) is guaranteed to be one of the 10.
+  nodes: [
+    // --- Identity (10, me always included) ---
+    { category: "identity", label: "me",
+      stimuli: ["me", "myself", "my values", "my life"],
+      alwaysInclude: true, includeFirstName: true },
+    { category: "identity", label: "Democrats",
+      stimuli: ["Democrats", "the Democratic Party"] },
+    { category: "identity", label: "Republicans",
+      stimuli: ["Republicans", "the Republican Party"] },
+    { category: "identity", label: "White people",
+      stimuli: ["White people", "White Americans"] },
+    { category: "identity", label: "Black people",
+      stimuli: ["Black people", "Black Americans", "African Americans"] },
+    { category: "identity", label: "women",
+      stimuli: ["women", "American women"] },
+    { category: "identity", label: "men",
+      stimuli: ["men", "American men"] },
+    { category: "identity", label: "working class people",
+      stimuli: ["working class people", "the working class", "blue-collar workers"] },
+    { category: "identity", label: "middle class people",
+      stimuli: ["middle class people", "the middle class"] },
+    { category: "identity", label: "poor people",
+      stimuli: ["poor people", "low-income Americans", "people in poverty"] },
+
+    // --- Policy (5) ---
+    { category: "policy", label: "stricter gun laws",
+      stimuli: ["stricter gun laws", "gun control", "assault weapon bans",
+                "universal background checks"] },
+    { category: "policy", label: "abortion access",
+      stimuli: ["abortion access", "abortion rights", "reproductive rights",
+                "the right to an abortion"] },
+    { category: "policy", label: "universal health care",
+      stimuli: ["universal health care", "Medicare for All",
+                "government-provided health insurance", "single-payer health care"] },
+    { category: "policy", label: "cutting taxes",
+      stimuli: ["cutting taxes", "tax cuts", "lower taxes",
+                "reducing the tax burden"] },
+    { category: "policy", label: "restricting immigration",
+      stimuli: ["restricting immigration", "immigration restrictions",
+                "building the border wall", "deporting immigrants",
+                "stricter border security"] },
+
+    // --- Values (5) ---
+    { category: "values", label: "freedom",
+      stimuli: ["freedom", "individual freedom", "personal liberty"] },
+    { category: "values", label: "equality",
+      stimuli: ["equality", "equal rights", "equal opportunity"] },
+    { category: "values", label: "tradition",
+      stimuli: ["tradition", "traditional values", "preserving traditions"] },
+    { category: "values", label: "security",
+      stimuli: ["security", "national security", "keeping America safe"] },
+    { category: "values", label: "compassion",
+      stimuli: ["compassion", "caring for others", "helping the vulnerable"] }
+  ],
+
+  /* ---- Practice stimuli ---- */
+  block1PracticeTargets: [
+    { category: "practice", label: "sunshine", stimuli: ["sunshine"] },
+    { category: "practice", label: "garbage",  stimuli: ["garbage"]  },
+    { category: "practice", label: "music",    stimuli: ["music"]    }
+  ],
+  block2PracticePairs: [
+    ["sunshine", "happiness"],
+    ["garbage",  "vacation"],
+    ["music",    "fun"],
+    ["illness",  "comfort"]
+  ]
+};
+
+/* ================================================================
+   RUNTIME STATE
+================================================================ */
+const S = {
+  /* Participant */
+  participantId    : "",
+  firstName        : "",
+
+  /* Resolved nodes keyed by label */
+  nodeMap          : {},
+
+  /* Block 1 */
+  b1Mapping        : {},          // { good: "e", bad: "i" } or reversed
+  b1MappingCond    : "",          // string tag saved in data
+  b1Targets        : [],          // resolved active node list
+  b1TrialList      : [],          // flat ordered list of b1 trial objects
+  b1SubBlockBounds : [],          // [0, n1, n2, total]
+  b1PracticeTrials : [],
+
+  /* Block 2 */
+  b2Mapping        : {},
+  b2MappingCond    : "",
+  b2Pairs          : [],          // resolved pair objects
+  b2TrialList      : [],
+  b2SubBlockBounds : [],
+  b2PracticeTrials : [],
+
+  /* All collected trial rows (both blocks) */
+  trialData        : [],
+
+  /* Internal trial control */
+  trialActive      : false,
+  inTrial          : false
+};
+
+/* ================================================================
+   UTILITY FUNCTIONS
+================================================================ */
+
+/** Fisher-Yates in-place shuffle */
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/** Random element from array */
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+/** Median of a numeric array (strips nulls/NaN) */
+function median(arr) {
+  const v = arr.filter(x => x != null && !isNaN(x)).sort((a, b) => a - b);
+  if (!v.length) return null;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 === 0 ? (v[m - 1] + v[m]) / 2 : v[m];
+}
+
+/** Round to N decimal places */
+function round(n, dp = 4) {
+  if (n == null) return null;
+  return parseFloat(n.toFixed(dp));
+}
+
+/** Auto-generated participant ID */
+function genId() { return "P" + Math.random().toString(36).slice(2, 9).toUpperCase(); }
+
+/**
+ * Reorder array to avoid >2 consecutive identical values (greedy).
+ * keyFn extracts the comparison key from each element.
+ */
+function reorderAvoidRepeats(arr, keyFn) {
+  const a = [...arr];
+  for (let i = 2; i < a.length; i++) {
+    if (keyFn(a[i]) === keyFn(a[i-1]) && keyFn(a[i]) === keyFn(a[i-2])) {
+      let swapIdx = -1;
+      for (let j = i + 1; j < a.length; j++) {
+        if (keyFn(a[j]) !== keyFn(a[i])) { swapIdx = j; break; }
+      }
+      if (swapIdx !== -1) [a[i], a[swapIdx]] = [a[swapIdx], a[i]];
+    }
+  }
+  return a;
+}
+
+/** Convert array of objects to CSV string */
+function toCSV(rows) {
+  if (!rows.length) return "";
+  const cols = Object.keys(rows[0]);
+  const escape = v => {
+    const s = v == null ? "" : String(v);
+    return (s.includes(",") || s.includes('"') || s.includes("\n"))
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(","),
+    ...rows.map(r => cols.map(c => escape(r[c])).join(","))
+  ].join("\n");
+}
+
+/** Trigger a file download in the browser */
+function downloadFile(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ================================================================
+   SETUP — called once after participant info is collected
+================================================================ */
+
+function setup() {
+  /* Participant ID */
+  S.participantId = S.participantId || genId();
+
+  /* Select node subset: always-include nodes + random draw from the rest */
+  const alwaysNodes = CONFIG.nodes.filter(n => n.alwaysInclude);
+  const poolNodes   = CONFIG.nodes.filter(n => !n.alwaysInclude);
+  const nRandom     = CONFIG.nodesPerParticipant - alwaysNodes.length;
+  const selectedNodes = [
+    ...alwaysNodes,
+    ...shuffle([...poolNodes]).slice(0, nRandom)
+  ];
+
+  /* Build nodeMap from the selected subset, applying first-name personalisation */
+  S.nodeMap = {};
+  for (const node of selectedNodes) {
+    const n = { ...node, stimuli: [...(node.stimuli || [])] };
+    if (n.includeFirstName && S.firstName.trim()) {
+      n.stimuli = [...n.stimuli, S.firstName.trim()];
+    }
+    S.nodeMap[n.label] = n;
+  }
+
+  /* Block 1 */
+  if (CONFIG.block1.enabled) {
+    S.b1Mapping     = resolveMapping(CONFIG.block1);
+    S.b1MappingCond = mappingTag("b1", S.b1Mapping, ["good","bad"]);
+    S.b1Targets     = Object.values(S.nodeMap);
+    S.b1TrialList   = generateB1Trials();
+    S.b1SubBlockBounds = subBlockBounds(S.b1TrialList.length, CONFIG.block1.subBlocks);
+    S.b1PracticeTrials = generateB1Practice();
+  }
+
+  /* Block 2 */
+  if (CONFIG.block2.enabled) {
+    S.b2Mapping     = resolveMapping(CONFIG.block2, true);
+    S.b2MappingCond = mappingTag("b2", S.b2Mapping, ["together","apart"]);
+    S.b2Pairs       = generatePairs();
+    S.b2TrialList   = generateB2Trials();
+    S.b2SubBlockBounds = subBlockBounds(S.b2TrialList.length, CONFIG.block2.subBlocks);
+    S.b2PracticeTrials = generateB2Practice();
+  }
+}
+
+/* ---- Key mapping helpers ---- */
+
+function resolveMapping(blockCfg, isPair = false) {
+  if (blockCfg.keyMappingMode === "counterbalance") {
+    const flip = Math.random() < 0.5;
+    if (isPair) {
+      return flip ? { together: "e", apart: "i" } : { together: "i", apart: "e" };
+    } else {
+      return flip ? { good: "e", bad: "i" } : { good: "i", bad: "e" };
+    }
+  }
+  return { ...blockCfg.fixedMapping };
+}
+
+function mappingTag(block, mapping, keys) {
+  // e.g. "E=good,I=bad"
+  const parts = ["e", "i"].map(k => {
+    const meaning = Object.keys(mapping).find(m => mapping[m] === k);
+    return `${k.toUpperCase()}=${meaning}`;
+  });
+  return parts.join(",");
+}
+
+/* ---- Sub-block boundary computation ---- */
+
+function subBlockBounds(total, nSubBlocks) {
+  const bounds = [0];
+  for (let b = 1; b <= nSubBlocks; b++) {
+    bounds.push(Math.round(b * total / nSubBlocks));
+  }
+  return bounds;
+}
+
+/* ================================================================
+   BLOCK 1 TRIAL GENERATION
+================================================================ */
+
+function makeB1Trial(node, subBlock, trialIndex) {
+  return {
+    taskType         : "single_target",
+    blockName        : "block1",
+    subBlockNumber   : subBlock,
+    trialIndex       : trialIndex,
+    targetLabel      : node.label,
+    targetCategory   : node.category,
+    stimulusPresented: pick(node.stimuli),
+    responseKey      : null,
+    responseLabel    : null,
+    rtMs             : null,
+    timeout          : 0,
+    trialStartTs     : null
+  };
+}
+
+function generateB1Trials() {
+  const targets  = S.b1Targets;
+  const reps     = CONFIG.block1.repetitionsPerTarget;
+  const nSub     = CONFIG.block1.subBlocks;
+  const subArrays = Array.from({ length: nSub }, () => []);
+
+  for (const node of targets) {
+    for (let r = 0; r < reps; r++) {
+      subArrays[r % nSub].push(node);
+    }
+  }
+
+  const allTrials = [];
+  let idx = 0;
+  for (let b = 0; b < nSub; b++) {
+    let arr = shuffle(subArrays[b]);
+    arr = reorderAvoidRepeats(arr, n => n.label);
+    for (const node of arr) {
+      allTrials.push(makeB1Trial(node, b + 1, idx++));
+    }
+  }
+  return allTrials;
+}
+
+function generateB1Practice() {
+  const trials = shuffle([...CONFIG.block1PracticeTargets]).map((t, i) =>
+    ({ ...makeB1Trial(t, 0, i), isPractice: true })
+  );
+  return trials;
+}
+
+/* ================================================================
+   BLOCK 2 PAIR GENERATION
+================================================================ */
+
+function generatePairs() {
+  const labels = Object.keys(S.nodeMap);
+  const resolved = [];
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      const n1 = S.nodeMap[labels[i]], n2 = S.nodeMap[labels[j]];
+      resolved.push({ id: [labels[i], labels[j]].sort().join(" | "), node1: n1, node2: n2 });
+    }
+  }
+  return resolved;
+}
+
+function makeB2Trial(pair, subBlock, trialIndex) {
+  const flip  = Math.random() < 0.5;
+  const [nL, nR] = flip ? [pair.node2, pair.node1] : [pair.node1, pair.node2];
+  return {
+    taskType              : "pairwise",
+    blockName             : "block2",
+    subBlockNumber        : subBlock,
+    trialIndex            : trialIndex,
+    pairId                : pair.id,
+    leftNodeLabel         : nL.label,
+    rightNodeLabel        : nR.label,
+    leftNodeCategory      : nL.category,
+    rightNodeCategory     : nR.category,
+    leftStimulusPresented : pick(nL.stimuli),
+    rightStimulusPresented: pick(nR.stimuli),
+    responseKey           : null,
+    responseLabel         : null,
+    rtMs                  : null,
+    timeout               : 0,
+    trialStartTs          : null
+  };
+}
+
+function generateB2Trials() {
+  const pairs    = S.b2Pairs;
+  const nSub     = CONFIG.block2.subBlocks;
+  const subArrays = Array.from({ length: nSub }, () => []);
+
+  for (const pair of pairs) {
+    const isMePair = pair.node1.category === "self" || pair.node2.category === "self";
+    const reps = isMePair
+      ? CONFIG.block2.repetitionsPerMePair
+      : CONFIG.block2.repetitionsPerPair;
+    for (let r = 0; r < reps; r++) {
+      subArrays[r % nSub].push(pair);
+    }
+  }
+
+  const allTrials = [];
+  let idx = 0;
+  for (let b = 0; b < nSub; b++) {
+    let arr = shuffle(subArrays[b]);
+    arr = reorderAvoidRepeats(arr, p => p.id);
+    for (const pair of arr) {
+      allTrials.push(makeB2Trial(pair, b + 1, idx++));
+    }
+  }
+  return allTrials;
+}
+
+function generateB2Practice() {
+  const pairs = shuffle([...CONFIG.block2PracticePairs]);
+  return pairs.map(([a, b], i) => {
+    const flip = Math.random() < 0.5;
+    return {
+      taskType              : "pairwise",
+      blockName             : "block2_practice",
+      subBlockNumber        : 0,
+      trialIndex            : i,
+      pairId                : `practice_${i}`,
+      leftNodeLabel         : flip ? b : a,
+      rightNodeLabel        : flip ? a : b,
+      leftNodeCategory      : "practice",
+      rightNodeCategory     : "practice",
+      leftStimulusPresented : flip ? b : a,
+      rightStimulusPresented: flip ? a : b,
+      responseKey           : null,
+      responseLabel         : null,
+      rtMs                  : null,
+      timeout               : 0,
+      trialStartTs          : null,
+      isPractice            : true
+    };
+  });
+}
+
+/* ================================================================
+   SCREEN MANAGEMENT
+================================================================ */
+
+const $screen = {};
+document.querySelectorAll(".screen").forEach(el => { $screen[el.id] = el; });
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
+  if ($screen[id]) $screen[id].classList.add("active");
+}
+
+/* ================================================================
+   CORNER LABELS & PROGRESS
+================================================================ */
+
+function setKeyLabels(visible, eText = "", iText = "") {
+  const L = document.getElementById("key-left");
+  const R = document.getElementById("key-right");
+  if (!visible) {
+    L.classList.remove("visible");
+    R.classList.remove("visible");
+    return;
+  }
+  L.textContent = `E = ${eText}`;
+  R.textContent = `I = ${iText}`;
+  L.classList.add("visible");
+  R.classList.add("visible");
+}
+
+function setB1Labels() {
+  const eM = S.b1Mapping.good === "e" ? "GOOD" : "BAD";
+  const iM = S.b1Mapping.bad  === "i" ? "BAD"  : "GOOD";
+  setKeyLabels(true, eM, iM);
+}
+
+function setB2Labels() {
+  const eM = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT GO TOGETHER";
+  const iM = S.b2Mapping.apart    === "i" ? "DO NOT GO TOGETHER" : "GO TOGETHER";
+  setKeyLabels(true, eM, iM);
+}
+
+function setProgress(current, total, label = "") {
+  document.getElementById("progress-bar-wrap").classList.add("visible");
+  document.getElementById("progress-text").classList.add("visible");
+  document.getElementById("progress-bar").style.width =
+    `${Math.round(100 * current / total)}%`;
+  document.getElementById("progress-text").textContent =
+    label ? `${label}  •  Trial ${current} of ${total}` : `Trial ${current} of ${total}`;
+}
+
+function hideProgress() {
+  document.getElementById("progress-bar-wrap").classList.remove("visible");
+  document.getElementById("progress-text").classList.remove("visible");
+}
+
+/* ================================================================
+   FULLSCREEN
+================================================================ */
+
+function requestFS() {
+  if (!CONFIG.fullscreen) return;
+  const el = document.documentElement;
+  (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+}
+
+function isFS() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+if (CONFIG.fullscreen && CONFIG.fullscreenWarning) {
+  document.addEventListener("fullscreenchange", () => {
+    const warn = document.getElementById("fs-warning");
+    if (!isFS() && S.inTrial) warn.classList.add("visible");
+    else warn.classList.remove("visible");
+  });
+}
+document.getElementById("fs-reenter-btn").addEventListener("click", () => {
+  requestFS();
+  document.getElementById("fs-warning").classList.remove("visible");
+});
+
+/* ================================================================
+   KEY PRACTICE WIDGET
+================================================================ */
+
+/** Build the key-demo HTML for a mapping (keys: array of 2 meaning strings) */
+function buildKeyDemo(containerId, eLabel, iLabel) {
+  document.getElementById(containerId).innerHTML = `
+    <div class="key-box">
+      <div class="key-cap">E</div>
+      <div class="key-meaning">${eLabel}</div>
+    </div>
+    <div class="key-box">
+      <div class="key-cap">I</div>
+      <div class="key-meaning">${iLabel}</div>
+    </div>`;
+}
+
+/**
+ * Run a key-practice widget: user must press both E and I once.
+ * statusId: element id for feedback text.
+ * Returns a promise that resolves when both keys pressed.
+ */
+function keyPracticeWidget(statusId) {
+  return new Promise(resolve => {
+    const status = document.getElementById(statusId);
+    status.textContent = "Press E first…";
+    let eOk = false, iOk = false;
+
+    function check() {
+      if (eOk && iOk) {
+        status.textContent = "Both keys pressed!";
+        document.removeEventListener("keydown", handler);
+        setTimeout(resolve, 600);
+      }
+    }
+    function handler(e) {
+      const k = e.key.toLowerCase();
+      if (k === "e" && !eOk) {
+        eOk = true;
+        status.textContent = iOk ? "Both keys pressed!" : "E pressed. Now press I…";
+        check();
+      }
+      if (k === "i" && !iOk) {
+        iOk = true;
+        status.textContent = eOk ? "Both keys pressed!" : "I pressed. Now press E…";
+        check();
+      }
+    }
+    document.addEventListener("keydown", handler);
+  });
+}
+
+/* ================================================================
+   TRIAL PRESENTATION ENGINE
+================================================================ */
+
+let _trialTimeoutId = null;
+
+/**
+ * Run a single trial (works for both block 1 and block 2).
+ * blockType: "b1" | "b2"
+ */
+function runTrial(trial, blockType) {
+  return new Promise(resolve => {
+    S.trialActive = true;
+    S.inTrial     = true;
+
+    const fixEl  = document.getElementById("fixation");
+    const singEl = document.getElementById("single-stimulus");
+    const pairEl = document.getElementById("pair-stimulus");
+    const fbEl   = document.getElementById("feedback-msg");
+    const pairL  = document.getElementById("pair-left");
+    const pairR  = document.getElementById("pair-right");
+
+    /* Reset */
+    fixEl.style.display  = "none";
+    singEl.style.display = "none";
+    pairEl.style.display = "none";
+    fbEl.textContent     = "";
+
+    const T = CONFIG.timings;
+    const deadline = blockType === "b1" ? T.block1DeadlineMs : T.block2DeadlineMs;
+
+    /* Phase 1: Fixation */
+    fixEl.style.display = "block";
+    setTimeout(() => {
+      fixEl.style.display = "none";
+
+      /* Phase 2: Blank */
+      setTimeout(() => {
+        /* Phase 3: Stimulus */
+        if (blockType === "b1") {
+          singEl.textContent  = trial.stimulusPresented;
+          singEl.style.display = "block";
+        } else {
+          pairL.textContent   = trial.leftStimulusPresented;
+          pairR.textContent   = trial.rightStimulusPresented;
+          pairEl.style.display = "flex";
+        }
+
+        trial.trialStartTs = new Date().toISOString();
+        const t0 = performance.now();
+
+        /* Deadline timeout */
+        _trialTimeoutId = setTimeout(() => {
+          if (!S.trialActive) return;
+          endTrial(trial, blockType, null, null, performance.now() - t0, true, resolve);
+        }, deadline);
+
+        /* Key response */
+        const handler = e => {
+          if (!S.trialActive) return;
+          const k = e.key.toLowerCase();
+          if (k !== "e" && k !== "i") return;
+          clearTimeout(_trialTimeoutId);
+          const rt     = performance.now() - t0;
+          const mapping = blockType === "b1" ? S.b1Mapping : S.b2Mapping;
+          let label;
+          if (blockType === "b1") {
+            label = (k === mapping.good) ? "good" : "bad";
+          } else {
+            label = (k === mapping.together) ? "together" : "apart";
+          }
+          document.removeEventListener("keydown", handler);
+          endTrial(trial, blockType, k, label, rt, false, resolve);
+        };
+        document.addEventListener("keydown", handler);
+        trial._keyHandler = handler; // store for cleanup
+
+      }, T.blankMs);
+    }, T.fixationMs);
+  });
+}
+
+function endTrial(trial, blockType, key, label, rt, timedOut, resolve) {
+  S.trialActive = false;
+  S.inTrial     = false;
+  if (trial._keyHandler) document.removeEventListener("keydown", trial._keyHandler);
+
+  const singEl = document.getElementById("single-stimulus");
+  const pairEl = document.getElementById("pair-stimulus");
+  const fbEl   = document.getElementById("feedback-msg");
+
+  singEl.style.display = "none";
+  pairEl.style.display = "none";
+
+  trial.responseKey   = key;
+  trial.responseLabel = label;
+  trial.rtMs          = timedOut ? null : Math.round(rt);
+  trial.timeout       = timedOut ? 1 : 0;
+
+  if (timedOut) {
+    fbEl.textContent = "Please respond faster";
+    setTimeout(() => {
+      fbEl.textContent = "";
+      setTimeout(resolve, CONFIG.timings.itiMs);
+    }, CONFIG.timings.timeoutFeedbackMs);
+  } else {
+    fbEl.textContent = "";
+    setTimeout(resolve, CONFIG.timings.itiMs);
+  }
+}
+
+/* ================================================================
+   ROW BUILDERS  (for trialData array)
+================================================================ */
+
+function buildRow(trial, blockType) {
+  const common = {
+    participant_id       : S.participantId,
+    first_name           : S.firstName,
+    experiment_version   : CONFIG.experimentVersion,
+    block_name           : trial.blockName,
+    subblock_number      : trial.subBlockNumber,
+    trial_index          : trial.trialIndex,
+    task_type            : trial.taskType,
+    mapping_condition    : blockType === "b1" ? S.b1MappingCond : S.b2MappingCond,
+    trial_start_timestamp: trial.trialStartTs,
+    rt_ms                : trial.rtMs,
+    timeout              : trial.timeout,
+    response_key         : trial.responseKey,
+    response_label       : trial.responseLabel
+  };
+
+  if (blockType === "b1") {
+    return {
+      ...common,
+      target_label     : trial.targetLabel,
+      target_category  : trial.targetCategory,
+      stimulus_presented: trial.stimulusPresented
+    };
+  } else {
+    return {
+      ...common,
+      pair_id                  : trial.pairId,
+      left_node_label          : trial.leftNodeLabel,
+      right_node_label         : trial.rightNodeLabel,
+      left_node_category       : trial.leftNodeCategory,
+      right_node_category      : trial.rightNodeCategory,
+      left_stimulus_presented  : trial.leftStimulusPresented,
+      right_stimulus_presented : trial.rightStimulusPresented
+    };
+  }
+}
+
+/* ================================================================
+   BLOCK RUNNER
+================================================================ */
+
+/**
+ * Run a slice of trials (one sub-block).
+ * Saves rows to S.trialData for non-practice trials.
+ */
+async function runTrialSlice(trials, blockType, progressTotal, progressOffset, progressLabel) {
+  for (let i = 0; i < trials.length; i++) {
+    setProgress(progressOffset + i + 1, progressTotal, progressLabel);
+    await runTrial(trials[i], blockType);
+    if (!trials[i].isPractice) {
+      S.trialData.push(buildRow(trials[i], blockType));
+    }
+  }
+}
+
+/* ================================================================
+   SPACE-BAR GATE
+================================================================ */
+
+function waitSpace() {
+  return new Promise(resolve => {
+    const h = e => {
+      if (e.code === "Space") {
+        document.removeEventListener("keydown", h);
+        resolve();
+      }
+    };
+    document.addEventListener("keydown", h);
+  });
+}
+
+/* ================================================================
+   BLOCK 1 FLOW
+================================================================ */
+
+async function runBlock1() {
+  const T = S.b1TrialList;
+  const bounds = S.b1SubBlockBounds;
+  const nSub   = CONFIG.block1.subBlocks;
+  const total  = T.length;
+
+  for (let b = 0; b < nSub; b++) {
+    /* Break between sub-blocks */
+    if (b > 0) {
+      hideProgress();
+      setKeyLabels(false);
+      document.getElementById("b1-break-badge").textContent =
+        `Part 1 — Section ${b} of ${nSub} complete`;
+      showScreen("s-b1-break");
+      await waitSpace();
+      showScreen("s-trial");
+      setB1Labels();
+    }
+
+    const slice = T.slice(bounds[b], bounds[b + 1]);
+    await runTrialSlice(slice, "b1", total, bounds[b], `Part 1 — Section ${b+1}/${nSub}`);
+  }
+}
+
+/* ================================================================
+   BLOCK 2 FLOW
+================================================================ */
+
+async function runBlock2() {
+  const T = S.b2TrialList;
+  const bounds = S.b2SubBlockBounds;
+  const nSub   = CONFIG.block2.subBlocks;
+  const total  = T.length;
+
+  for (let b = 0; b < nSub; b++) {
+    if (b > 0) {
+      hideProgress();
+      setKeyLabels(false);
+      document.getElementById("b2-break-badge").textContent =
+        `Part 2 — Section ${b} of ${nSub} complete`;
+      showScreen("s-b2-break");
+      await waitSpace();
+      showScreen("s-trial");
+      setB2Labels();
+    }
+
+    const slice = T.slice(bounds[b], bounds[b + 1]);
+    await runTrialSlice(slice, "b2", total, bounds[b], `Part 2 — Section ${b+1}/${nSub}`);
+  }
+}
+
+/* ================================================================
+   SUMMARY COMPUTATIONS
+================================================================ */
+
+function computeB1Summary() {
+  const b1Rows = S.trialData.filter(r => r.block_name === "block1");
+  const groups = {};
+  for (const r of b1Rows) {
+    const k = r.target_label;
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(r);
+  }
+  return Object.entries(groups).map(([label, rows]) => {
+    const goodRows = rows.filter(r => r.response_label === "good");
+    const badRows  = rows.filter(r => r.response_label === "bad");
+    const allRts   = rows.filter(r => !r.timeout).map(r => r.rt_ms);
+    const goodRts  = goodRows.filter(r => !r.timeout).map(r => r.rt_ms);
+    const badRts   = badRows.filter(r => !r.timeout).map(r => r.rt_ms);
+    const n = rows.length;
+    return {
+      participant_id   : S.participantId,
+      target_label     : label,
+      target_category  : rows[0].target_category,
+      n_trials         : n,
+      n_good           : goodRows.length,
+      n_bad            : badRows.length,
+      prop_good        : n ? round(goodRows.length / n) : null,
+      prop_bad         : n ? round(badRows.length  / n) : null,
+      median_rt_all    : median(allRts),
+      median_rt_good   : median(goodRts),
+      median_rt_bad    : median(badRts),
+      timeout_rate     : n ? round(rows.filter(r => r.timeout).length / n) : null,
+      mapping_condition: S.b1MappingCond
+    };
+  });
+}
+
+function computeB2Summary() {
+  const b2Rows = S.trialData.filter(r => r.block_name === "block2");
+  const groups = {};
+  for (const r of b2Rows) {
+    const k = r.pair_id;
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(r);
+  }
+  return Object.entries(groups).map(([pairId, rows]) => {
+    const toRows  = rows.filter(r => r.response_label === "together");
+    const apRows  = rows.filter(r => r.response_label === "apart");
+    const allRts  = rows.filter(r => !r.timeout).map(r => r.rt_ms);
+    const toRts   = toRows.filter(r => !r.timeout).map(r => r.rt_ms);
+    const apRts   = apRows.filter(r => !r.timeout).map(r => r.rt_ms);
+    const n = rows.length;
+
+    // Canonical node1/node2 from pair id
+    const [n1, n2] = pairId.split(" | ");
+    const node1 = S.nodeMap[n1] || {};
+    const node2 = S.nodeMap[n2] || {};
+
+    return {
+      participant_id    : S.participantId,
+      pair_id           : pairId,
+      node1_label       : n1,
+      node2_label       : n2,
+      node1_category    : node1.category || "",
+      node2_category    : node2.category || "",
+      n_trials          : n,
+      n_together        : toRows.length,
+      n_apart           : apRows.length,
+      prop_together     : n ? round(toRows.length / n) : null,
+      prop_apart        : n ? round(apRows.length  / n) : null,
+      median_rt_all     : median(allRts),
+      median_rt_together: median(toRts),
+      median_rt_apart   : median(apRts),
+      timeout_rate      : n ? round(rows.filter(r => r.timeout).length / n) : null,
+      mapping_condition : S.b2MappingCond
+    };
+  });
+}
+
+/* ================================================================
+   DEBRIEF
+================================================================ */
+
+function showDebrief() {
+  hideProgress();
+  setKeyLabels(false);
+
+  const n1 = S.trialData.filter(r => r.block_name === "block1").length;
+  const n2 = S.trialData.filter(r => r.block_name === "block2").length;
+  const to = S.trialData.filter(r => r.timeout).length;
+  document.getElementById("debrief-stats").textContent =
+    `Part 1 trials: ${n1}  |  Part 2 trials: ${n2}  |  Timeouts: ${to}  |  ID: ${S.participantId}`;
+
+  const pid = S.participantId;
+  const b1sum = computeB1Summary();
+  const b2sum = computeB2Summary();
+
+  document.getElementById("dl-trial-csv").onclick = () =>
+    downloadFile(toCSV(S.trialData), `${pid}_trials.csv`, "text/csv");
+  document.getElementById("dl-trial-json").onclick = () =>
+    downloadFile(JSON.stringify(S.trialData, null, 2), `${pid}_trials.json`, "application/json");
+  document.getElementById("dl-b1-summary").onclick = () =>
+    downloadFile(toCSV(b1sum), `${pid}_block1_target_summary.csv`, "text/csv");
+  document.getElementById("dl-b2-summary").onclick = () =>
+    downloadFile(toCSV(b2sum), `${pid}_block2_pair_summary.csv`, "text/csv");
+
+  showScreen("s-debrief");
+}
+
+/* ================================================================
+   MAIN EXPERIMENT FLOW  (fully async, single entry point)
+================================================================ */
+
+async function runExperiment() {
+
+  /* ══════════════════ BLOCK 1 ══════════════════ */
+  if (CONFIG.block1.enabled) {
+
+    /* -- B1 Instructions -- */
+    document.getElementById("b1-deadline-display").textContent =
+      (CONFIG.timings.block1DeadlineMs / 1000).toFixed(1);
+    showScreen("s-b1-instr");
+    await buttonClick("btn-b1-instr");
+
+    /* -- B1 Key practice -- */
+    const b1eLabel = S.b1Mapping.good === "e" ? "GOOD" : "BAD";
+    const b1iLabel = S.b1Mapping.bad  === "i" ? "BAD"  : "GOOD";
+    buildKeyDemo("b1-key-demo", b1eLabel, b1iLabel);
+    showScreen("s-b1-keys");
+    await keyPracticeWidget("key-practice-status");
+
+    /* -- B1 Practice trials -- */
+    showScreen("s-b1-prac-start");
+    await waitSpace();
+    showScreen("s-trial");
+    setB1Labels();
+    await runTrialSlice(S.b1PracticeTrials, "b1",
+      S.b1PracticeTrials.length, 0, "Part 1 — Practice");
+
+    /* -- B1 Practice → Main transition -- */
+    hideProgress();
+    setKeyLabels(false);
+    showScreen("s-b1-prac-end");
+    await waitSpace();
+    showScreen("s-trial");
+    setB1Labels();
+
+    /* -- B1 Main trials -- */
+    await runBlock1();
+    hideProgress();
+    setKeyLabels(false);
+  }
+
+  /* ══════════════════ MID BREAK ══════════════════ */
+  if (CONFIG.block1.enabled && CONFIG.block2.enabled) {
+    showScreen("s-mid-break");
+    await waitSpace();
+  }
+
+  /* ══════════════════ BLOCK 2 ══════════════════ */
+  if (CONFIG.block2.enabled) {
+
+    /* -- B2 Instructions -- */
+    document.getElementById("b2-deadline-display").textContent =
+      (CONFIG.timings.block2DeadlineMs / 1000).toFixed(1);
+    showScreen("s-b2-instr");
+    await buttonClick("btn-b2-instr");
+
+    /* -- B2 Key practice -- */
+    const b2eLabel = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT GO TOGETHER";
+    const b2iLabel = S.b2Mapping.apart    === "i" ? "DO NOT GO TOGETHER" : "GO TOGETHER";
+    buildKeyDemo("b2-key-demo", b2eLabel, b2iLabel);
+    showScreen("s-b2-keys");
+    await keyPracticeWidget("b2-key-practice-status");
+
+    /* -- B2 Practice trials -- */
+    showScreen("s-b2-prac-start");
+    await waitSpace();
+    showScreen("s-trial");
+    setB2Labels();
+    await runTrialSlice(S.b2PracticeTrials, "b2",
+      S.b2PracticeTrials.length, 0, "Part 2 — Practice");
+
+    /* -- B2 Practice → Main transition -- */
+    hideProgress();
+    setKeyLabels(false);
+    showScreen("s-b2-prac-end");
+    await waitSpace();
+    showScreen("s-trial");
+    setB2Labels();
+
+    /* -- B2 Main trials -- */
+    await runBlock2();
+    hideProgress();
+    setKeyLabels(false);
+  }
+
+  showDebrief();
+}
+
+/* ================================================================
+   HELPER: promise that resolves on a button click (one-shot)
+================================================================ */
+function buttonClick(id) {
+  return new Promise(resolve => {
+    const btn = document.getElementById(id);
+    btn.addEventListener("click", resolve, { once: true });
+  });
+}
+
+/* ================================================================
+   UI WIRING — entry-point buttons only
+================================================================ */
+
+/* Welcome */
+document.getElementById("btn-welcome").addEventListener("click", () => {
+  if (CONFIG.fullscreen) requestFS();
+
+  if (CONFIG.participantIdPrompt || CONFIG.askFirstName) {
+    document.getElementById("pid-field").style.display =
+      CONFIG.participantIdPrompt ? "flex" : "none";
+    document.getElementById("fname-field").style.display =
+      CONFIG.askFirstName ? "flex" : "none";
+    showScreen("s-info");
+  } else {
+    setup();
+    showScreen("s-general-instr");
+  }
+});
+
+/* Info form */
+document.getElementById("btn-info").addEventListener("click", () => {
+  S.participantId = document.getElementById("pid-input").value.trim() || genId();
+  S.firstName     = document.getElementById("fname-input").value.trim();
+  setup();
+  showScreen("s-general-instr");
+});
+
+/* General instructions → kick off async experiment flow */
+document.getElementById("btn-general-instr").addEventListener("click", () => {
+  runExperiment();
+});
+
+</script>
+</body>
+</html>
