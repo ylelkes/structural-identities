@@ -1584,12 +1584,19 @@ function runAnalysis() {
   document.getElementById("viz-nav").style.display = "flex";
   setupToggles();
 
-  // Compute per-node RT-weighted valence from B1 data
-  const nodeValences = computeNodeValences(_b1Sum);
+  // Compute per-camp node valence: each camp uses only its own participants' B1 data
+  // so liberals see Democrats as good/blue, conservatives see them as bad/red, etc.
+  function campB1(camp) {
+    if (camp === "All") return _b1Sum;
+    const pids = new Set(_b2Sum.filter(r => CAMP_MAP[r.participant_type] === camp).map(r => r.participant_id));
+    return _b1Sum.filter(r => pids.has(r.participant_id));
+  }
 
   // Precompute all camp data
   const campData = {};
-  ["All","Liberal","Centrist","Conservative"].forEach(c => { campData[c] = buildCampData(c, nodeValences); });
+  ["All","Liberal","Centrist","Conservative"].forEach(c => {
+    campData[c] = buildCampData(c, computeNodeValences(campB1(c)));
+  });
 
   // ── Network section ──
   const networkBtn = document.getElementById("open-network-btn");

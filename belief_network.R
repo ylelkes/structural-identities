@@ -552,7 +552,7 @@ group_map <- tribble(
   "maga",                     "Conservative"
 )
 
-make_group_network <- function(camp, b2_data) {
+make_group_network <- function(camp, b2_data, b1_data = NULL) {
 
   pids <- b2_data %>%
     left_join(group_map, by = "participant_type") %>%
@@ -597,7 +597,27 @@ make_group_network <- function(camp, b2_data) {
 
   g_grp <- tbl_graph(nodes = node_sub, edges = grp_edges, directed = FALSE)
 
-  # Normalize valence within this subgroup
+  # Compute valence from this camp's own B1 rows, then normalize within the set
+  if (!is.null(b1_data) && nrow(b1_data) > 0) {
+    camp_valence <- b1_data %>%
+      filter(participant_id %in% pids) %>%
+      mutate(node = if_else(target_label == "first_name", FIRST_NAME_DISPLAY, target_label)) %>%
+      group_by(node) %>%
+      summarise(
+        mean_prop_good = mean(prop_good,  na.rm = TRUE),
+        mean_ratio_b1  = mean(rt_ratio,   na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      mutate(
+        rt_factor_b1     = pmax(0.4, 1 - 0.3 * coalesce(mean_ratio_b1, 1.0)),
+        valence_score     = 0.5 + (mean_prop_good - 0.5) * rt_factor_b1
+      )
+    node_sub <- node_sub %>%
+      select(-any_of(c("mean_prop_good", "valence_score"))) %>%
+      left_join(camp_valence %>% select(node = node, mean_prop_good, valence_score),
+                by = c("name" = "node"))
+  }
+
   node_sub <- node_sub %>%
     mutate(
       valence_norm = if_else(
@@ -649,7 +669,7 @@ make_group_network <- function(camp, b2_data) {
 }
 
 camps       <- c("Liberal", "Centrist", "Conservative")
-camp_plots  <- map(camps, make_group_network, b2_data = b2_raw) %>% compact()
+camp_plots  <- map(camps, make_group_network, b2_data = b2_raw, b1_data = b1_raw) %>% compact()
 
 if (length(camp_plots) >= 2) {
   p4 <- wrap_plots(camp_plots, nrow = 1) +
