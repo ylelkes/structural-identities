@@ -24,12 +24,14 @@
 #   03_association_heatmap.pdf  pair-level association matrix
 #   04_group_networks.pdf       liberal vs centrist vs conservative
 #   05_me_connections.pdf       self-concept associations
+#   06_leiden_communities.pdf   Leiden community structure with coloured hulls
+#   07_leiden_membership.pdf    community membership grid (nodes × communities)
 # ============================================================
 
 # ── 0. Packages ──────────────────────────────────────────────────────────────
 
 required <- c("tidyverse", "igraph", "ggraph", "tidygraph",
-              "graphlayouts", "scales", "patchwork", "ggrepel")
+              "graphlayouts", "scales", "patchwork", "ggrepel", "ggforce")
 
 for (pkg in required) {
   if (!requireNamespace(pkg, quietly = TRUE))
@@ -346,6 +348,57 @@ node_centrality <- node_df %>%
 
 write_csv(node_centrality, file.path(PLOT_DIR, "node_centrality.csv"))
 message("✓ Saved node_centrality.csv")
+
+# ── 6c. Leiden community detection ───────────────────────────────────────────
+#
+# Uses igraph::cluster_leiden() (requires igraph ≥ 1.3) with modularity
+# objective and rt_weighted_strength as edge weights.
+# Falls back to cluster_louvain() on older igraph versions.
+
+set.seed(42)
+leiden_result <- tryCatch(
+  cluster_leiden(ig,
+    objective_function   = "modularity",
+    resolution_parameter = 1.0,
+    weights              = E(ig)$rt_weighted_strength),
+  error = function(e) {
+    message("⚠ cluster_leiden() unavailable (requires igraph ≥ 1.3) — using cluster_louvain()")
+    set.seed(42)
+    cluster_louvain(ig, weights = E(ig)$rt_weighted_strength)
+  }
+)
+
+community_df <- tibble(
+  name      = names(membership(leiden_result)),
+  community = as.integer(membership(leiden_result))
+)
+n_comm    <- n_distinct(community_df$community)
+leiden_mod <- round(modularity(leiden_result), 3)
+message(sprintf("✓ Leiden: %d communities  |  modularity = %.3f", n_comm, leiden_mod))
+
+# Attach community to node_df and rebuild graph
+node_df <- node_df %>% left_join(community_df, by = "name")
+g       <- tbl_graph(nodes = node_df, edges = edge_df, directed = FALSE)
+
+# Append community column to the centrality CSV
+node_centrality <- node_centrality %>% left_join(community_df, by = "name")
+write_csv(node_centrality, file.path(PLOT_DIR, "node_centrality.csv"))
+
+# Save community membership separately
+community_detail <- node_df %>%
+  filter(!is.na(community)) %>%
+  select(name, category, community) %>%
+  arrange(community, category, name)
+write_csv(community_detail, file.path(PLOT_DIR, "leiden_communities.csv"))
+message("✓ Saved leiden_communities.csv")
+
+# Community colour palette — qualitative, distinct from category & valence colours
+COMM_COLORS <- setNames(
+  c("#e74c3c", "#3498db", "#f39c12", "#2ecc71",
+    "#9b59b6", "#1abc9c", "#e67e22", "#fd79a8",
+    "#00cec9", "#d63031")[seq_len(n_comm)],
+  as.character(seq_len(n_comm))
+)
 
 # ── 7. PLOT 1 — Full Belief Network ──────────────────────────────────────────
 #
@@ -767,6 +820,172 @@ ggsave(file.path(PLOT_DIR, "05_me_connections.pdf"),
        p5, width = 9, height = 8, device = cairo_pdf)
 message("✓ Saved 05_me_connections.pdf")
 
+# ── 13. PLOT 6 — Leiden Community Network ────────────────────────────────────
+#
+# Node fill   = community colour (coloured hulls show groupings)
+# Node stroke = category (identity/policy/values)
+# Edge colour = association direction
+
+set.seed(42)
+comm_layout <- create_layout(g, layout = "stress",
+                              weights = E(g)$rt_weighted_strength)
+
+p6 <- ggraph(comm_layout) +
+
+  # Coloured convex hulls behind nodes
+  ggforce::geom_mark_hull(
+    data   = as_tibble(comm_layout) %>% filter(!is.na(community)),
+    aes(x = x, y = y,
+        group = factor(community),
+        fill  = factor(community)),
+    expand  = unit(18, "pt"),
+    radius  = unit(10, "pt"),
+    alpha   = 0.15,
+    colour  = NA,
+    show.legend = FALSE
+  ) +
+  scale_fill_manual(values = COMM_COLORS) +
+
+  geom_edge_link(
+    aes(
+      width  = rt_weighted_strength,
+      colour = assoc_direction,
+      alpha  = assoc_strength
+    ),
+    lineend = "round"
+  ) +
+  scale_edge_width(range = c(0.4, 3.5), guide = "none") +
+  scale_edge_alpha(range = c(0.3, 0.95), guide = "none") +
+  scale_edge_colour_manual(
+    values = c(together = "#3a82c4", apart = "#d45f3c"),
+    guide  = "none"
+  ) +
+
+  geom_node_point(
+    aes(fill = factor(community), colour = name, shape = name),
+    size = 11, stroke = 2.5
+  ) +
+  scale_fill_manual(
+    values = COMM_COLORS,
+    name   = "Community",
+    labels = function(x) paste("Community", x),
+    guide  = guide_legend(override.aes = list(shape = 21, stroke = 0, size = 6))
+  ) +
+  scale_colour_manual(values = node_color_vec, guide = "none") +
+  scale_shape_manual(values  = node_shape_vec, guide = "none") +
+
+  geom_node_text(
+    aes(label = name),
+    size = 3.1, fontface = "bold", colour = "white", repel = FALSE
+  ) +
+
+  theme_graph(base_family = "sans", background = "#0d1117") +
+  theme(
+    legend.position   = "right",
+    legend.background = element_rect(fill = "#1a1f2e", colour = NA),
+    legend.text       = element_text(colour = "#cccccc", size = 9),
+    legend.title      = element_text(colour = "#aaaaaa", size = 9),
+    plot.background   = element_rect(fill = "#0d1117", colour = NA),
+    plot.title        = element_text(colour = "#eeeeee", size = 14,
+                                     face = "bold", margin = margin(b = 6)),
+    plot.subtitle     = element_text(colour = "#888888", size = 10,
+                                     margin = margin(b = 14)),
+    plot.caption      = element_text(colour = "#555555", size = 8)
+  ) +
+  labs(
+    title    = "Leiden Community Structure — Belief Network",
+    subtitle = paste0(
+      sprintf("%d communities detected  ·  ", n_comm),
+      "Filled hulls = Leiden communities  ·  ",
+      "Stroke = category (identity/policy/values)  ·  ",
+      "Edge colour = association direction"
+    ),
+    caption  = paste0(
+      "N = ", N_participants, " participants  ·  ",
+      "Leiden modularity = ", leiden_mod, "  ·  ",
+      "Resolution parameter = 1.0  ·  Edge weights = RT-weighted strength"
+    )
+  )
+
+ggsave(file.path(PLOT_DIR, "06_leiden_communities.pdf"),
+       p6, width = 13, height = 9, device = cairo_pdf)
+message("✓ Saved 06_leiden_communities.pdf")
+
+# ── 14. PLOT 7 — Community Membership Grid ────────────────────────────────────
+#
+# Each column = one community; rows = nodes in that community
+# Fill colour = node category; text = node name
+
+membership_grid <- node_df %>%
+  filter(!is.na(community)) %>%
+  mutate(
+    community = factor(community, levels = sort(unique(community))),
+    category  = factor(category, levels = c("identity", "policy", "values"))
+  ) %>%
+  arrange(community, category, name) %>%
+  group_by(community) %>%
+  mutate(y_pos = row_number()) %>%
+  ungroup() %>%
+  mutate(
+    comm_label = paste0("Community ", community)
+  )
+
+max_per_comm <- max(membership_grid$y_pos)
+
+p7 <- membership_grid %>%
+  ggplot(aes(x = comm_label, y = y_pos)) +
+  geom_tile(
+    aes(fill = category),
+    colour    = "#0d1117",
+    linewidth = 0.8,
+    width     = 0.88, height = 0.88
+  ) +
+  geom_text(
+    aes(label = name, colour = category),
+    fontface = "bold", size = 3.2, hjust = 0.5
+  ) +
+  scale_fill_manual(
+    values = alpha(CATEGORY_COLORS, 0.35),
+    name   = "Category"
+  ) +
+  scale_colour_manual(values = CATEGORY_COLORS, guide = "none") +
+  scale_y_reverse(breaks = NULL, expand = expansion(add = 0.6)) +
+  scale_x_discrete(position = "top") +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.background  = element_rect(fill = "#0d1117", colour = NA),
+    plot.background   = element_rect(fill = "#0d1117", colour = NA),
+    axis.text.x       = element_text(colour = "#eeeeee", size = 11, face = "bold"),
+    axis.text.y       = element_blank(),
+    axis.title        = element_blank(),
+    legend.position   = "bottom",
+    legend.background = element_rect(fill = "#1a1f2e", colour = NA),
+    legend.text       = element_text(colour = "#cccccc", size = 9),
+    legend.title      = element_text(colour = "#aaaaaa", size = 9),
+    plot.title        = element_text(colour = "#eeeeee", size = 13, face = "bold"),
+    plot.subtitle     = element_text(colour = "#888888", size = 9),
+    plot.caption      = element_text(colour = "#555555", size = 8),
+    panel.grid        = element_blank()
+  ) +
+  labs(
+    title    = "Leiden Community Membership",
+    subtitle = paste0(
+      sprintf("%d communities  ·  ", n_comm),
+      "Tile fill = node category (identity/policy/values)"
+    ),
+    caption  = paste0(
+      "N = ", N_participants, " participants  ·  ",
+      "Modularity = ", leiden_mod
+    )
+  )
+
+ggsave(file.path(PLOT_DIR, "07_leiden_membership.pdf"),
+       p7,
+       width  = max(7, n_comm * 2.8),
+       height = max(5, max_per_comm * 0.65 + 2.5),
+       device = cairo_pdf)
+message("✓ Saved 07_leiden_membership.pdf")
+
 # ── 12. Console summary ───────────────────────────────────────────────────────
 
 cat("\n══════════════════════════════════════════════════════\n")
@@ -810,5 +1029,21 @@ node_centrality %>%
   pull(row) %>% cat(sep = "\n")
 
 cat(sprintf("\n  (Full table saved to plots/node_centrality.csv)\n"))
+
+cat(sprintf("\nLeiden communities (%d detected, modularity = %.3f):\n",
+            n_comm, leiden_mod))
+community_detail %>%
+  group_by(community) %>%
+  summarise(
+    n_nodes  = n(),
+    nodes    = paste(name, collapse = ", "),
+    cats     = paste(sort(unique(category)), collapse = "/"),
+    .groups  = "drop"
+  ) %>%
+  mutate(row = sprintf("  Community %-2s (%d nodes, %s): %s",
+                       community, n_nodes, cats, nodes)) %>%
+  pull(row) %>% cat(sep = "\n")
+
+cat("\n  (Membership saved to plots/leiden_communities.csv)\n")
 cat("\n✓ All plots saved to:", normalizePath(PLOT_DIR), "\n")
 cat("══════════════════════════════════════════════════════\n\n")

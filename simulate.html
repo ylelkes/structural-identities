@@ -167,6 +167,7 @@
   <a href="#section-network">Network</a>
   <a href="#section-me">Me Connections</a>
   <a href="#section-centrality">Centrality</a>
+  <a href="#section-leiden">Communities</a>
 </nav>
 
 <div class="viz-section" id="section-network">
@@ -208,6 +209,21 @@
       <button class="camp-tab" data-camp="Conservative">Conservative</button>
     </div>
     <div id="viz-centrality"></div>
+  </div>
+</div>
+
+<div class="viz-section" id="section-leiden">
+  <h3 class="viz-toggle">Leiden Communities</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Modularity-maximising community detection on the RT-weighted association network · Node colour = community · Stroke = category</p>
+    <div class="camp-tabs" id="leiden-tabs">
+      <button class="camp-tab active" data-camp="All">All</button>
+      <button class="camp-tab" data-camp="Liberal">Liberal</button>
+      <button class="camp-tab" data-camp="Centrist">Centrist</button>
+      <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
+    <button id="open-leiden-btn" class="open-btn" style="margin-bottom:16px">↗ Open Community Network</button>
+    <div id="viz-leiden"></div>
   </div>
 </div>
 
@@ -1336,6 +1352,286 @@ function renderCentralityTable(nodes) {
     </table>`;
 }
 
+/* ── Leiden community detection ──────────────────────────────────────────────
+   Implements Louvain modularity maximisation (same objective as Leiden).
+   Returns a Map: nodeName → communityId (0-indexed, sorted by size desc).
+   Edge weights used: rtWeightedStrength.
+──────────────────────────────────────────────────────────────────────────── */
+const LEIDEN_COLORS = [
+  "#e74c3c","#3498db","#f39c12","#2ecc71",
+  "#9b59b6","#1abc9c","#e67e22","#fd79a8",
+  "#00cec9","#d63031"
+];
+function leidenColor(commId) {
+  return LEIDEN_COLORS[commId % LEIDEN_COLORS.length];
+}
+
+function leidenCommunities(nodes, edges) {
+  if (!nodes.length) return new Map();
+  const N = nodes.length;
+  const names = nodes.map(n => n.label);
+  const idx   = new Map(names.map((name, i) => [name, i]));
+
+  /* Sparse weighted adjacency */
+  const adj = Array.from({length: N}, () => new Map());
+  let m = 0;
+  for (const e of edges) {
+    const i = idx.get(e.n1), j = idx.get(e.n2);
+    if (i == null || j == null) continue;
+    const w = (e.rtWeightedStrength || e.assocStrength || 0);
+    adj[i].set(j, (adj[i].get(j) || 0) + w);
+    adj[j].set(i, (adj[j].get(i) || 0) + w);
+    m += w;
+  }
+  if (m === 0) return new Map(names.map((name, i) => [name, 0]));
+
+  /* Node strengths */
+  const ki = Array.from({length: N}, (_, i) => {
+    let s = 0; for (const w of adj[i].values()) s += w; return s;
+  });
+
+  /* Init: each node in its own community */
+  const comm    = Array.from({length: N}, (_, i) => i);
+  const sigTot  = [...ki]; /* sum of ki for community c */
+
+  let changed = true, iter = 0;
+  while (changed && iter++ < 100) {
+    changed = false;
+    /* Randomise node visit order */
+    const order = Array.from({length: N}, (_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    for (const i of order) {
+      const ci = comm[i];
+      sigTot[ci] -= ki[i];
+
+      /* k_{i,in}(ci without i) */
+      let kIinCi = 0;
+      for (const [j, w] of adj[i]) { if (comm[j] === ci) kIinCi += w; }
+
+      /* Candidate communities = neighbours' communities */
+      const cands = new Map();
+      for (const [j, w] of adj[i]) {
+        const cj = comm[j]; cands.set(cj, (cands.get(cj) || 0) + w);
+      }
+      cands.set(ci, kIinCi);
+
+      let bestC = ci, bestGain = 0;
+      for (const [c, kIinC] of cands) {
+        if (c === ci) continue;
+        /* ΔQ = (k_{i→c} − k_{i→ci}) / m − (Σtot(c) − Σtot(ci)) · ki / (2m²) */
+        const gain = (kIinC - kIinCi) / m
+                   - (sigTot[c] - sigTot[ci]) * ki[i] / (2 * m * m);
+        if (gain > bestGain) { bestGain = gain; bestC = c; }
+      }
+
+      comm[i] = bestC;
+      sigTot[bestC] += ki[i];
+      if (bestC !== ci) changed = true;
+    }
+  }
+
+  /* Renumber by descending community size (community 0 = largest) */
+  const freq = new Map();
+  for (const c of comm) freq.set(c, (freq.get(c) || 0) + 1);
+  const sorted  = [...freq.entries()].sort((a, b) => b[1] - a[1]);
+  const renum   = new Map(sorted.map(([c], i) => [c, i]));
+  return new Map(names.map((name, i) => [name, renum.get(comm[i])]));
+}
+
+/* ── Render: Leiden community cards + interactive button wiring ── */
+function renderLeidenSection(nodes, edges) {
+  const commMap = leidenCommunities(nodes, edges);
+
+  /* Group by community */
+  const groups = new Map();
+  for (const [name, cid] of commMap) {
+    if (!groups.has(cid)) groups.set(cid, []);
+    const node = nodes.find(n => n.label === name);
+    if (node) groups.get(cid).push(node);
+  }
+  const nComm = groups.size;
+
+  let html = `<p style="color:#555;font-size:0.8rem;margin-bottom:14px">`
+    + `${nComm} communit${nComm === 1 ? 'y' : 'ies'} detected</p>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:18px">`;
+  for (const [cid, cnodes] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
+    const col = leidenColor(cid);
+    const sorted = [...cnodes].sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label));
+    html += `<div style="background:#111;border:1px solid #1e1e1e;border-top:3px solid ${col};`
+          + `border-radius:5px;padding:12px 14px">`;
+    html += `<div style="color:${col};font-size:0.82rem;font-weight:bold;margin-bottom:6px">`
+          + `Community ${cid + 1}</div>`;
+    html += `<div style="font-size:0.75rem;color:#555;margin-bottom:8px">`
+          + `${sorted.length} node${sorted.length !== 1 ? 's' : ''}</div>`;
+    html += sorted.map(n => {
+      const cc = CAT_COLORS[n.category] || '#aaa';
+      return `<div style="padding:2px 0;font-size:0.8rem;color:#ccc">`
+           + `<span style="color:${cc}">●</span> ${n.label}</div>`;
+    }).join('');
+    html += `</div>`;
+  }
+  html += `</div>`;
+  document.getElementById("viz-leiden").innerHTML = html;
+  return commMap;
+}
+
+/* ── Interactive community network (nodes coloured by community) ── */
+function generateCommunityHTML(nodesIn, edgesIn, communityMap, title) {
+  const nd = JSON.stringify(nodesIn.map(n => ({
+    label: n.label, category: n.category,
+    strengthNorm: +(n.strengthNorm||0).toFixed(4),
+    eigen: +(n.eigen||0).toFixed(4),
+    community: communityMap.get(n.label) ?? null
+  })));
+  const ed = JSON.stringify(edgesIn.map(e => ({
+    id: e.id, n1: e.n1, n2: e.n2,
+    centeredAssoc: +e.centeredAssoc.toFixed(4),
+    assocStrength: +e.assocStrength.toFixed(4),
+    rtWeightedStrength: +((e.rtWeightedStrength||e.assocStrength)).toFixed(4),
+    meanAssoc: +e.meanAssoc.toFixed(4),
+    meanRT: e.meanRT ? Math.round(e.meanRT) : null,
+    nPart: e.nPart
+  })));
+  const commColors = JSON.stringify(LEIDEN_COLORS);
+  const safe = title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${safe}</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;overflow:hidden;font-family:sans-serif;user-select:none}
+#svg{display:block}
+#tooltip{position:fixed;pointer-events:none;display:none;z-index:200;background:rgba(10,14,26,.97);border:1px solid #2a3a5a;border-radius:5px;padding:8px 12px;font-size:12px;line-height:1.65;color:#ccc;max-width:260px}
+#controls{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:100;background:rgba(13,17,30,.88);border:1px solid #222;border-radius:6px;padding:8px 16px}
+button{background:#1a2535;color:#9ab;border:1px solid #2a3a5a;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:12px;font-family:inherit}
+button:hover{background:#243045}
+#page-title{position:fixed;top:10px;left:50%;transform:translateX(-50%);color:#e8a030;font-size:14px;font-weight:bold;pointer-events:none;background:rgba(13,17,30,.75);padding:4px 16px;border-radius:4px}
+#hint{position:fixed;top:40px;left:50%;transform:translateX(-50%);color:#3a3a3a;font-size:10px;pointer-events:none;white-space:nowrap}
+</style></head><body>
+<div id="page-title">${safe}</div>
+<div id="hint">Scroll = zoom · Drag background = pan · Drag nodes = reposition · Hover = details · Dbl-click = reset</div>
+<svg id="svg"></svg><div id="tooltip"></div>
+<div id="controls">
+  <button onclick="resetView()">⌂ Reset</button>
+  <button onclick="doLayout()">↺ Relayout</button>
+</div>
+<script>
+"use strict";
+const NODES=${nd}, EDGES=${ed};
+const COMM_C=${commColors};
+const NS="http://www.w3.org/2000/svg";
+const CAT_C={identity:"#5b8dd9",policy:"#6ac46a",values:"#c97de8"};
+const W=window.innerWidth, H=window.innerHeight;
+function el(tag,a){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e;}
+function star5(cx,cy,r){const pts=[];const ir=r*0.42;for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2;const rad=i%2===0?r:ir;pts.push((cx+rad*Math.cos(a)).toFixed(1)+","+(cy+rad*Math.sin(a)).toFixed(1));}return pts.join(" ");}
+function shape(cat,cx,cy,r,fill,stroke,sw,lbl){const a={fill,stroke,"stroke-width":sw};if(lbl==="me")return el("polygon",{...a,points:star5(cx,cy,r)});if(cat==="identity")return el("circle",{...a,cx,cy,r});if(cat==="policy")return el("rect",{...a,x:cx-r,y:cy-r,width:2*r,height:2*r});return el("polygon",{...a,points:cx+","+(cy-r)+" "+(cx+r)+","+cy+" "+cx+","+(cy+r)+" "+(cx-r)+","+cy});}
+function llines(lbl){if(lbl.length<=9)return[lbl];const w=lbl.split(" ");if(w.length===1)return[lbl.slice(0,9)+"…"];const m=Math.ceil(w.length/2);return[w.slice(0,m).join(" "),w.slice(m).join(" ")];}
+/* Convex hull (gift-wrapping) with outward padding */
+function cross(O,A,B){return(A.x-O.x)*(B.y-O.y)-(A.y-O.y)*(B.x-O.x);}
+function convexHull(pts){
+  if(pts.length<3)return pts;
+  const n=pts.length,p=[...pts].sort((a,b)=>a.x===b.x?a.y-b.y:a.x-b.x);
+  const lo=[],hi=[];
+  for(let i=0;i<n;i++){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p[i])<=0)lo.pop();lo.push(p[i]);}
+  for(let i=n-1;i>=0;i--){while(hi.length>=2&&cross(hi[hi.length-2],hi[hi.length-1],p[i])<=0)hi.pop();hi.push(p[i]);}
+  hi.pop();lo.pop();return lo.concat(hi);
+}
+function expandPoly(pts,pad){
+  const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length;
+  const cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  return pts.map(p=>{const dx=p.x-cx,dy=p.y-cy,d=Math.sqrt(dx*dx+dy*dy)||1;return{x:p.x+dx/d*pad,y:p.y+dy/d*pad};});
+}
+function hullPath(pts){return"M"+pts.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join("L")+"Z";}
+function layout(nodes){
+  const cx=W/2,cy=H/2,pad=90,k=Math.sqrt(W*H/nodes.length)*.75;
+  const nm={};nodes.forEach(n=>{nm[n.label]=n;n.x=cx+(Math.random()-.5)*W*.5;n.y=cy+(Math.random()-.5)*H*.5});
+  for(let it=0;it<350;it++){
+    const tmp=(1-it/350)*(W/7);nodes.forEach(n=>{n.dx=0;n.dy=0});
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const dx=nodes[i].x-nodes[j].x||.01,dy=nodes[i].y-nodes[j].y||.01;
+      const d=Math.sqrt(dx*dx+dy*dy)||.01,f=k*k/d;
+      nodes[i].dx+=dx/d*f;nodes[i].dy+=dy/d*f;nodes[j].dx-=dx/d*f;nodes[j].dy-=dy/d*f;
+    }
+    nodes.forEach(n=>{const p=n.label==="me"?.08:.012;n.dx+=(cx-n.x)*p;n.dy+=(cy-n.y)*p});
+    EDGES.forEach(e=>{const s=nm[e.n1],t=nm[e.n2];if(!s||!t)return;const w=Math.max(e.rtWeightedStrength||e.assocStrength,.01),dx=s.x-t.x,dy=s.y-t.y,d=Math.sqrt(dx*dx+dy*dy)||.01,f=d*d/k*w*1.8;s.dx-=dx/d*f;s.dy-=dy/d*f;t.dx+=dx/d*f;t.dy+=dy/d*f});
+    nodes.forEach(n=>{const d=Math.sqrt(n.dx*n.dx+n.dy*n.dy)||.01;n.x+=n.dx/d*Math.min(d,tmp);n.y+=n.dy/d*Math.min(d,tmp);n.x=Math.max(pad,Math.min(W-pad,n.x));n.y=Math.max(pad,Math.min(H-pad,n.y))});
+  }
+  const me=nodes.find(n=>n.label==="me");if(me){const ox=cx-me.x,oy=cy-me.y;nodes.forEach(n=>{n.x=Math.max(pad,Math.min(W-pad,n.x+ox));n.y=Math.max(pad,Math.min(H-pad,n.y+oy))});}
+}
+const nodes=NODES.map(n=>({...n})),nm={};nodes.forEach(n=>nm[n.label]=n);
+const svg=document.getElementById("svg");svg.setAttribute("width",W);svg.setAttribute("height",H);
+const zg=el("g",{});svg.appendChild(zg);
+const HL=el("g",{}),EL=el("g",{}),NL=el("g",{});
+zg.appendChild(HL);zg.appendChild(EL);zg.appendChild(NL);
+let tx=0,ty=0,sc=1;function az(){zg.setAttribute("transform","translate("+tx+","+ty+") scale("+sc+")");}
+function sid(s){return s.replace(/[^a-zA-Z0-9]/g,"_");}
+function drawHulls(){
+  HL.innerHTML="";
+  const groups={};nodes.forEach(n=>{const c=n.community??0;(groups[c]=groups[c]||[]).push({x:n.x,y:n.y});});
+  for(const[c,pts]of Object.entries(groups)){
+    if(pts.length<2)continue;
+    const hull=pts.length===2?[{x:pts[0].x-30,y:pts[0].y},{x:pts[1].x+30,y:pts[1].y},{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2-30}]:convexHull(pts);
+    const exp=expandPoly(hull,36);
+    const col=COMM_C[c%COMM_C.length];
+    HL.appendChild(el("path",{d:hullPath(exp),fill:col,"fill-opacity":"0.13",stroke:col,"stroke-opacity":"0.35","stroke-width":"1.5","stroke-linejoin":"round"}));
+  }
+}
+function drawEdge(e){
+  const s=nm[e.n1],t=nm[e.n2];if(!s||!t)return;
+  const eid="e_"+sid(e.id||e.n1+"_"+e.n2);
+  let ln=document.getElementById(eid);
+  if(!ln){
+    const w=e.rtWeightedStrength||e.assocStrength;
+    ln=el("line",{id:eid,stroke:e.centeredAssoc>=0?"#27ae60":"#e67e22","stroke-linecap":"round",
+      "stroke-width":(0.8+w*14).toFixed(1),"stroke-opacity":Math.min(.15+w*1.8,.9).toFixed(2)});
+    EL.appendChild(ln);
+    ln.addEventListener("mouseenter",ev=>showET(e,ev));ln.addEventListener("mouseleave",hideTip);
+  }
+  ln.setAttribute("x1",s.x.toFixed(1));ln.setAttribute("y1",s.y.toFixed(1));
+  ln.setAttribute("x2",t.x.toFixed(1));ln.setAttribute("y2",t.y.toFixed(1));
+}
+function drawNode(n){
+  const nid="n_"+sid(n.label);let g=document.getElementById(nid);
+  const r=13+n.strengthNorm*11;
+  if(!g){
+    g=el("g",{id:nid,cursor:"grab"});
+    const fill=n.community!=null?COMM_C[n.community%COMM_C.length]:"#3a4455";
+    const stroke=CAT_C[n.category]||"#607080";
+    g.appendChild(shape(n.category,0,0,r,fill,stroke,"2.5",n.label));
+    llines(n.label).forEach((txt,i)=>{
+      const t=el("text",{x:"0",y:r+11+i*12,"text-anchor":"middle","font-size":"9",
+        "font-family":"sans-serif","fill":"#ddd","font-weight":"bold","pointer-events":"none"});
+      t.textContent=txt;g.appendChild(t);
+    });
+    NL.appendChild(g);
+    g.addEventListener("mouseenter",ev=>showNT(n,ev));g.addEventListener("mouseleave",hideTip);
+    g.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();
+      drag={node:n,mx:ev.clientX,my:ev.clientY,nx:n.x,ny:n.y};g.style.cursor="grabbing";});
+  }
+  g.setAttribute("transform","translate("+n.x.toFixed(1)+","+n.y.toFixed(1)+")");
+}
+function renderAll(){drawHulls();EDGES.forEach(drawEdge);nodes.forEach(drawNode);}
+function doLayout(){NL.innerHTML="";EL.innerHTML="";HL.innerHTML="";layout(nodes);renderAll();}
+let pan=false,px0,py0,tx0,ty0,drag=null;
+svg.addEventListener("wheel",ev=>{ev.preventDefault();const d=ev.deltaY>0?.85:1/.85;tx=ev.clientX-(ev.clientX-tx)*d;ty=ev.clientY-(ev.clientY-ty)*d;sc=Math.max(.05,Math.min(30,sc*d));az();},{passive:false});
+svg.addEventListener("mousedown",ev=>{if(drag)return;pan=true;px0=ev.clientX;py0=ev.clientY;tx0=tx;ty0=ty;svg.style.cursor="grabbing";});
+window.addEventListener("mousemove",ev=>{
+  if(drag){drag.node.x=drag.nx+(ev.clientX-drag.mx)/sc;drag.node.y=drag.ny+(ev.clientY-drag.my)/sc;drawNode(drag.node);drawHulls();EDGES.forEach(e=>{if(e.n1===drag.node.label||e.n2===drag.node.label)drawEdge(e);});}
+  else if(pan){tx=tx0+(ev.clientX-px0);ty=ty0+(ev.clientY-py0);az();}
+});
+window.addEventListener("mouseup",()=>{if(drag){document.getElementById("n_"+sid(drag.node.label)).style.cursor="grab";drag=null;}pan=false;svg.style.cursor="default";});
+svg.addEventListener("dblclick",resetView);
+function resetView(){tx=0;ty=0;sc=1;az();}
+const tip=document.getElementById("tooltip");
+function pos(ev){const x=ev.clientX+14,y=ev.clientY-10;tip.style.left=(x+tip.offsetWidth>W?x-tip.offsetWidth-28:x)+"px";tip.style.top=(y+tip.offsetHeight>H?y-tip.offsetHeight:y)+"px";}
+function showNT(n,ev){const col=n.community!=null?COMM_C[n.community%COMM_C.length]:"#888";tip.innerHTML="<strong style='color:#ddd'>"+n.label+"</strong><br>Community: <span style='color:"+col+"'>"+(n.community!=null?"Community "+(n.community+1):"—")+"</span><br>Category: <span style='color:#aaa'>"+n.category+"</span><br>Strength: <span style='color:#aaa'>"+n.strengthNorm.toFixed(3)+"</span><br>Eigenvector: <span style='color:#aaa'>"+n.eigen.toFixed(3)+"</span>";tip.style.display="block";pos(ev);}
+function showET(e,ev){const d=e.centeredAssoc>=0?"go together":"do not go together",c=e.centeredAssoc>=0?"#27ae60":"#e67e22",rt=e.meanRT?e.meanRT+"ms":"—";tip.innerHTML="<strong style='color:#ddd'>"+e.n1+"</strong> &amp; <strong style='color:#ddd'>"+e.n2+"</strong><br><span style='color:"+c+"'>"+d+"</span><br>prop_together: <span style='color:#aaa'>"+e.meanAssoc.toFixed(3)+"</span><br>Strength: <span style='color:#aaa'>"+e.assocStrength.toFixed(3)+"</span><br>Mean RT: <span style='color:#aaa'>"+rt+"</span><br>N participants: <span style='color:#aaa'>"+e.nPart+"</span>";tip.style.display="block";pos(ev);}
+function hideTip(){tip.style.display="none";}
+document.addEventListener("mousemove",ev=>{if(tip.style.display!=="none")pos(ev);});
+doLayout();
+<\/script></body></html>`;
+}
+
 /* ── Political camp mapping ── */
 const CAMP_MAP = {
   strong_progressive:     "Liberal",
@@ -1633,6 +1929,34 @@ function runAnalysis() {
   }
   updateCentrality("All");
   setupCampTabs("centrality-tabs", updateCentrality);
+
+  // ── Leiden communities section ──
+  const leidenBtn = document.getElementById("open-leiden-btn");
+  let _leidenCamp = "All";
+  let _leidenCommMap = null;
+
+  function updateLeiden(camp) {
+    const d = campData[camp];
+    if (!d) {
+      document.getElementById("viz-leiden").innerHTML =
+        `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
+      leidenBtn.disabled = true;
+      return;
+    }
+    _leidenCommMap = renderLeidenSection(d.nodes, d.edges);
+    leidenBtn.disabled = false;
+    leidenBtn.textContent = `↗ Open Community Network${camp === "All" ? "" : " — " + camp}`;
+    leidenBtn.onclick = () => {
+      const html = generateCommunityHTML(d.nodes, d.edges, _leidenCommMap,
+        (camp === "All" ? "All" : camp) + " — Leiden Communities");
+      const w = window.open("", "_blank");
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+      else alert("Popup blocked — please allow popups and try again.");
+    };
+  }
+
+  updateLeiden("All");
+  setupCampTabs("leiden-tabs", camp => { _leidenCamp = camp; updateLeiden(camp); });
 }
 </script>
 </body>
