@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Evaluation &amp; Association Task</title>
-<script>
-/* Redirect touch/mobile devices to the mobile-optimised version */
-if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
-  window.location.replace('mobile_task.html' + window.location.search);
-}
-</script>
 <style>
 /* ================================================================
    RESET & BASE
 ================================================================ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after {
+  box-sizing: border-box; margin: 0; padding: 0;
+  touch-action: manipulation; /* prevents 300ms delay & double-tap zoom */
+  -webkit-tap-highlight-color: transparent;
+}
 
 :root {
   --bg: #111;
@@ -24,6 +22,7 @@ if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
   --warn: #e8a030;
   --panel: #1e1e1e;
   --border: #333;
+  --tap-h: 88px;
 }
 
 body {
@@ -36,6 +35,7 @@ body {
   justify-content: center;
   user-select: none;
   -webkit-user-select: none;
+  overflow-x: hidden;
 }
 
 #app {
@@ -46,68 +46,91 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
-  padding: 20px;
+  padding: 20px 20px calc(var(--tap-h) + 20px);
 }
-
-/* ================================================================
-   CORNER KEY LABELS
-================================================================ */
-.key-label {
-  position: fixed;
-  top: 22px;
-  font-size: 1.05rem;
-  font-weight: bold;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-  display: none;
-}
-.key-label.left  { left: 28px; }
-.key-label.right { right: 28px; }
-.key-label.visible { display: block; }
 
 /* ================================================================
    PROGRESS
 ================================================================ */
 #progress-bar-wrap {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
-  height: 5px;
+  bottom: var(--tap-h); left: 0; right: 0;
+  height: 4px;
   background: #222;
   display: none;
+  z-index: 90;
 }
 #progress-bar-wrap.visible { display: block; }
 #progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.18s; }
 
 #progress-text {
   position: fixed;
-  bottom: 11px;
+  bottom: calc(var(--tap-h) + 10px);
   left: 50%;
   transform: translateX(-50%);
   font-size: 0.78rem;
   color: #555;
   display: none;
   white-space: nowrap;
+  z-index: 90;
 }
 #progress-text.visible { display: block; }
 
 /* ================================================================
-   FULLSCREEN WARNING OVERLAY
+   TAP BAR — two large response buttons fixed at bottom
 ================================================================ */
-#fs-warning {
-  display: none;
+#tap-bar {
   position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.94);
-  z-index: 9999;
-  flex-direction: column;
+  bottom: 0; left: 0; right: 0;
+  height: var(--tap-h);
+  display: none;
+  gap: 3px;
+  background: #0a0a0a;
+  z-index: 100;
+}
+#tap-bar.visible { display: flex; }
+
+.tap-btn {
+  flex: 1;
+  background: #1a1a1a;
+  border: none;
+  border-top: 4px solid #333;
+  color: #e0e0e0;
+  font-size: 0.92rem;
+  font-weight: bold;
+  font-family: 'Georgia', serif;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  padding: 10px 8px;
   text-align: center;
-  padding: 40px;
+  line-height: 1.3;
 }
-#fs-warning.visible { display: flex; }
-#fs-warning h2 { color: var(--warn); font-size: 1.6rem; font-weight: normal; }
+.tap-btn:active { background: #2d2d2d; }
+#tap-left  { border-top-color: #5b8dd9; }
+#tap-right { border-top-color: #c0392b; }
+
+/* ================================================================
+   CONTINUE BUTTON (replaces spacebar)
+================================================================ */
+#tap-continue {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--tap-h);
+  background: #1e3a2a;
+  border: none;
+  border-top: 4px solid var(--accent);
+  color: var(--fg);
+  font-size: 1.05rem;
+  font-family: 'Georgia', serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  z-index: 100;
+}
+#tap-continue:active { background: #2a4a38; }
 
 /* ================================================================
    SCREENS
@@ -117,16 +140,16 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  max-width: 720px;
+  max-width: 680px;
   width: 100%;
   text-align: center;
-  gap: 22px;
+  gap: 20px;
 }
 .screen.active { display: flex; }
 
-h1 { font-size: 2rem; font-weight: normal; letter-spacing: 0.04em; }
-h2 { font-size: 1.5rem; font-weight: normal; color: #ccc; }
-p  { font-size: 1.05rem; line-height: 1.75; color: #ccc; max-width: 640px; }
+h1 { font-size: 1.75rem; font-weight: normal; letter-spacing: 0.04em; }
+h2 { font-size: 1.35rem; font-weight: normal; color: #ccc; }
+p  { font-size: 1rem; line-height: 1.75; color: #ccc; max-width: 600px; }
 .small { font-size: 0.88rem; color: var(--muted); }
 .tag  { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase;
         color: var(--muted); }
@@ -136,21 +159,23 @@ hr { border: none; border-top: 1px solid var(--border); width: 80%; }
 /* ================================================================
    BUTTONS & INPUTS
 ================================================================ */
-button {
+button.nav-btn {
   background: var(--accent);
   color: #fff;
   border: none;
-  padding: 12px 36px;
+  padding: 14px 40px;
   font-size: 1rem;
   border-radius: 4px;
   cursor: pointer;
   letter-spacing: 0.04em;
   font-family: inherit;
   margin-top: 4px;
+  min-height: 52px;
+  min-width: 140px;
 }
-button:hover { filter: brightness(1.15); }
-button.sec { background: #444; }
-button.sec:hover { background: #666; }
+button.nav-btn:active { filter: brightness(1.2); }
+button.nav-btn.sec { background: #444; }
+button.nav-btn.sec:active { background: #666; }
 
 .btn-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 
@@ -158,7 +183,7 @@ input[type="text"] {
   background: #222;
   border: 1px solid #444;
   color: var(--fg);
-  padding: 10px 16px;
+  padding: 12px 16px;
   font-size: 1.05rem;
   border-radius: 4px;
   width: 280px;
@@ -168,32 +193,37 @@ input[type="text"] {
 input[type="text"]:focus { outline: none; border-color: var(--accent); }
 
 label { font-size: 0.95rem; color: #bbb; }
-
 .field { display: flex; flex-direction: column; align-items: center; gap: 7px; }
 
 /* ================================================================
-   KEY DEMO
+   TAP BUTTON DEMO (shown on key-practice screens)
 ================================================================ */
-.key-demo {
+.tap-demo {
   display: flex;
-  gap: 60px;
+  gap: 30px;
   justify-content: center;
   flex-wrap: wrap;
   margin: 8px 0;
 }
-.key-box { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.key-cap {
-  width: 68px; height: 68px;
+.tap-demo-box { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.tap-demo-key {
+  width: 120px; height: 58px;
   border: 3px solid #444;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
+  font-size: 0.9rem;
   font-weight: bold;
   background: #1e1e1e;
+  padding: 4px 8px;
+  text-align: center;
+  line-height: 1.3;
+  color: var(--fg);
 }
-.key-meaning { font-size: 0.9rem; color: #aaa; max-width: 130px; line-height: 1.35; }
+.tap-demo-key.left  { border-top: 4px solid #5b8dd9; }
+.tap-demo-key.right { border-top: 4px solid #c0392b; }
+.tap-demo-label { font-size: 0.85rem; color: #888; }
 .key-practice-status { min-height: 1.4em; color: var(--warn); font-size: 0.95rem; }
 
 /* ================================================================
@@ -207,6 +237,7 @@ label { font-size: 0.95rem; color: #bbb; }
   display: none;
   gap: 8px;
   align-items: center;
+  z-index: 50;
 }
 #streak-display.visible { display: flex; }
 .streak-dot {
@@ -222,11 +253,11 @@ label { font-size: 0.95rem; color: #bbb; }
    TRIAL AREA
 ================================================================ */
 #fixation     { font-size: 3rem; color: #666; display: none; }
-#feedback-msg { font-size: 1.15rem; color: var(--warn); min-height: 1.5em; }
+#feedback-msg { font-size: 1.1rem; color: var(--warn); min-height: 1.5em; }
 
 /* Block 1: single stimulus */
 #single-stimulus {
-  font-size: 2.4rem;
+  font-size: 2.2rem;
   font-weight: bold;
   color: var(--fg);
   display: none;
@@ -240,18 +271,26 @@ label { font-size: 0.95rem; color: #bbb; }
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 50px;
+  gap: 36px;
   width: 100%;
 }
 .pair-word {
-  font-size: 2.1rem;
+  font-size: 1.8rem;
   font-weight: bold;
   color: var(--fg);
-  max-width: 300px;
+  max-width: 260px;
   line-height: 1.3;
   text-align: center;
 }
-.pair-divider { font-size: 1.8rem; color: #444; flex-shrink: 0; }
+.pair-divider { font-size: 1.5rem; color: #444; flex-shrink: 0; }
+
+/* Stack vertically on narrow screens */
+@media (max-width: 500px) {
+  #pair-stimulus { flex-direction: column; gap: 14px; }
+  .pair-word { font-size: 1.55rem; max-width: 100%; }
+  .pair-divider { font-size: 1rem; }
+  #single-stimulus { font-size: 1.75rem; }
+}
 
 /* ================================================================
    BREAK / INFO PANELS
@@ -274,16 +313,25 @@ label { font-size: 0.95rem; color: #bbb; }
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-top: 6px;
+  width: 100%;
 }
-@media (max-width: 500px) { .dl-grid { grid-template-columns: 1fr; } }
+@media (max-width: 420px) { .dl-grid { grid-template-columns: 1fr; } }
+.dl-grid button {
+  background: #444;
+  color: #fff;
+  border: none;
+  padding: 14px 10px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 52px;
+}
+.dl-grid button:active { background: #666; }
 </style>
 </head>
 <body>
 <div id="app">
-
-  <!-- Corner key labels -->
-  <div class="key-label left"  id="key-left"></div>
-  <div class="key-label right" id="key-right"></div>
 
   <!-- Progress -->
   <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
@@ -298,29 +346,22 @@ label { font-size: 0.95rem; color: #bbb; }
     <div class="streak-dot" id="dot-4"></div>
   </div>
 
-  <!-- Fullscreen re-entry overlay -->
-  <div id="fs-warning">
-    <h2>Please return to fullscreen</h2>
-    <p>This task requires fullscreen mode. Click below to continue.</p>
-    <button id="fs-reenter-btn">Return to Fullscreen</button>
-  </div>
-
   <!-- ============================================================
        S01 — WELCOME
   ============================================================ -->
   <div class="screen active" id="s-welcome">
     <h1>Evaluation &amp; Association Study</h1>
     <p>
-      In this study you will complete a short computer task involving everyday words and concepts.
-      You will respond using only the keyboard.
+      In this study you will complete a short task involving everyday words and concepts.
+      You will respond by <strong>tapping buttons</strong> on screen.
     </p>
     <p>
       Your participation is voluntary and your responses are anonymous.
       The full task takes approximately <strong>8–12 minutes</strong>.
     </p>
-    <p class="small">By clicking "Begin" you agree to participate in this study.</p>
-    <button id="btn-welcome">Begin</button>
-    <p class="small" style="margin-top:24px;"><a href="index.html" style="color:#555;text-decoration:none;font-size:0.75rem;">← Project home</a></p>
+    <p class="small">By tapping "Begin" you agree to participate in this study.</p>
+    <button class="nav-btn" id="btn-welcome">Begin</button>
+    <p class="small" style="margin-top:16px;"><a href="index.html" style="color:#555;text-decoration:none;font-size:0.75rem;">← Project home</a></p>
   </div>
 
   <!-- ============================================================
@@ -330,13 +371,15 @@ label { font-size: 0.95rem; color: #bbb; }
     <h2>Participant Information</h2>
     <div class="field" id="pid-field">
       <label for="pid-input">Participant ID (or leave blank for auto-generated ID)</label>
-      <input type="text" id="pid-input" placeholder="e.g. P001" autocomplete="off">
+      <input type="text" id="pid-input" placeholder="e.g. P001" autocomplete="off"
+             autocorrect="off" autocapitalize="off">
     </div>
     <div class="field" id="fname-field">
       <label for="fname-input">Your first name (used to personalize some items)</label>
-      <input type="text" id="fname-input" placeholder="e.g. Alex" autocomplete="off">
+      <input type="text" id="fname-input" placeholder="e.g. Alex" autocomplete="off"
+             autocorrect="off">
     </div>
-    <button id="btn-info">Continue</button>
+    <button class="nav-btn" id="btn-info">Continue</button>
   </div>
 
   <!-- ============================================================
@@ -348,19 +391,19 @@ label { font-size: 0.95rem; color: #bbb; }
     <p>This study has <strong>two short parts</strong>.</p>
     <p>
       In <strong>Part 1</strong>, you will see words or phrases appear on the screen
-      one at a time. Press <strong>E</strong> or <strong>I</strong> to rate each one
+      one at a time. Tap <strong>LEFT</strong> or <strong>RIGHT</strong> to rate each one
       as <strong>GOOD</strong> or <strong>BAD</strong>.
     </p>
     <p>
-      In <strong>Part 2</strong>, you will see <strong>two items side-by-side</strong>
-      and press a key to say whether they <strong>go together</strong> or
+      In <strong>Part 2</strong>, you will see <strong>two items</strong>
+      and tap to say whether they <strong>go together</strong> or
       <strong>do not go together</strong> in your mind.
     </p>
     <p>
       Please respond as <strong>quickly and instinctively</strong> as you can —
       both speed and accuracy matter.
     </p>
-    <button id="btn-general-instr">Continue</button>
+    <button class="nav-btn" id="btn-general-instr">Continue</button>
   </div>
 
   <!-- ============================================================
@@ -377,17 +420,17 @@ label { font-size: 0.95rem; color: #bbb; }
       Go with your <strong>first instinct</strong> — there are no trick questions.
       You must respond within <strong id="b1-deadline-display"></strong> seconds.
     </p>
-    <button id="btn-b1-instr">Continue to Key Practice</button>
+    <button class="nav-btn" id="btn-b1-instr">Continue to Button Practice</button>
   </div>
 
   <!-- ============================================================
        S05 — BLOCK 1 KEY PRACTICE
   ============================================================ -->
   <div class="screen" id="s-b1-keys">
-    <div class="tag">Part 1 — Key Practice</div>
-    <h2>Learn the Keys</h2>
-    <div class="key-demo" id="b1-key-demo"></div>
-    <p>Press each key once to practice the response mapping.</p>
+    <div class="tag">Part 1 — Button Practice</div>
+    <h2>Learn the Buttons</h2>
+    <div class="tap-demo" id="b1-key-demo"></div>
+    <p>Tap each button once to practice.</p>
     <div class="key-practice-status" id="b1-key-practice-status"></div>
   </div>
 
@@ -405,7 +448,6 @@ label { font-size: 0.95rem; color: #bbb; }
       You need to get <strong>5 correct in a row</strong> before the real task begins.
       If you don't, you'll get a few more practice trials.
     </p>
-    <p>Press <strong>SPACE</strong> to begin practice.</p>
   </div>
 
   <!-- ============================================================
@@ -415,7 +457,6 @@ label { font-size: 0.95rem; color: #bbb; }
     <div class="tag">Practice</div>
     <h2>Not quite!</h2>
     <p id="prac-retry-msg"></p>
-    <p>Press <strong>SPACE</strong> to try again.</p>
   </div>
 
   <!-- ============================================================
@@ -429,7 +470,6 @@ label { font-size: 0.95rem; color: #bbb; }
       groups, policies, and values.
     </p>
     <p>Remember: respond <strong>quickly and instinctively</strong>.</p>
-    <p>Press <strong>SPACE</strong> to begin Part 1.</p>
   </div>
 
   <!-- ============================================================
@@ -438,7 +478,7 @@ label { font-size: 0.95rem; color: #bbb; }
   <div class="screen" id="s-b1-break">
     <div class="block-badge" id="b1-break-badge"></div>
     <h2>Take a Short Break</h2>
-    <p>Rest for a moment. When you are ready, press <strong>SPACE</strong> to continue Part 1.</p>
+    <p>Rest for a moment, then tap Continue when you are ready.</p>
   </div>
 
   <!-- ============================================================
@@ -451,7 +491,6 @@ label { font-size: 0.95rem; color: #bbb; }
       You have finished Part 1. Now you will move on to <strong>Part 2</strong>,
       where you will judge pairs of items.
     </p>
-    <p>Press <strong>SPACE</strong> to continue.</p>
   </div>
 
   <!-- ============================================================
@@ -461,7 +500,7 @@ label { font-size: 0.95rem; color: #bbb; }
     <div class="tag">Part 2 — Association Task</div>
     <h2>Instructions</h2>
     <p>
-      You will see <strong>two items</strong> appear side-by-side on the screen.
+      You will see <strong>two items</strong> appear on the screen.
       Your task is to indicate whether these two things <strong>go together</strong> in your mind
       or <strong>do not go together</strong>.
     </p>
@@ -473,17 +512,17 @@ label { font-size: 0.95rem; color: #bbb; }
       Please respond as <strong>quickly and instinctively</strong> as you can.
       You must respond within <strong id="b2-deadline-display"></strong> seconds.
     </p>
-    <button id="btn-b2-instr">Continue to Key Practice</button>
+    <button class="nav-btn" id="btn-b2-instr">Continue to Button Practice</button>
   </div>
 
   <!-- ============================================================
        S11 — BLOCK 2 KEY PRACTICE
   ============================================================ -->
   <div class="screen" id="s-b2-keys">
-    <div class="tag">Part 2 — Key Practice</div>
-    <h2>Learn the Keys</h2>
-    <div class="key-demo" id="b2-key-demo"></div>
-    <p>Press each key once to practice the response mapping.</p>
+    <div class="tag">Part 2 — Button Practice</div>
+    <h2>Learn the Buttons</h2>
+    <div class="tap-demo" id="b2-key-demo"></div>
+    <p>Tap each button once to practice.</p>
     <div class="key-practice-status" id="b2-key-practice-status"></div>
   </div>
 
@@ -499,9 +538,7 @@ label { font-size: 0.95rem; color: #bbb; }
     </p>
     <p>
       You need <strong>5 correct in a row</strong> to move on.
-      If you don't get them, you'll try a few more.
     </p>
-    <p>Press <strong>SPACE</strong> to begin practice.</p>
   </div>
 
   <!-- ============================================================
@@ -515,7 +552,6 @@ label { font-size: 0.95rem; color: #bbb; }
       groups, policies, and values.
     </p>
     <p>Remember: respond <strong>quickly and instinctively</strong>.</p>
-    <p>Press <strong>SPACE</strong> to begin Part 2.</p>
   </div>
 
   <!-- ============================================================
@@ -524,7 +560,7 @@ label { font-size: 0.95rem; color: #bbb; }
   <div class="screen" id="s-b2-break">
     <div class="block-badge" id="b2-break-badge"></div>
     <h2>Take a Short Break</h2>
-    <p>Rest for a moment. When you are ready, press <strong>SPACE</strong> to continue Part 2.</p>
+    <p>Rest for a moment, then tap Continue when you are ready.</p>
   </div>
 
   <!-- ============================================================
@@ -564,6 +600,15 @@ label { font-size: 0.95rem; color: #bbb; }
 
 </div><!-- #app -->
 
+<!-- Fixed tap response buttons (shown during trials) -->
+<div id="tap-bar">
+  <button class="tap-btn" id="tap-left"></button>
+  <button class="tap-btn" id="tap-right"></button>
+</div>
+
+<!-- Fixed continue button (shown between blocks/sections) -->
+<button id="tap-continue">Continue →</button>
+
 <script>
 "use strict";
 /* ================================================================
@@ -573,9 +618,8 @@ const CONFIG = {
 
   participantIdPrompt : true,
   askFirstName        : true,
-  fullscreen          : true,
-  fullscreenWarning   : true,
-  experimentVersion   : "2.0.0",
+  fullscreen          : false,   /* disabled on mobile */
+  experimentVersion   : "2.0.0-mobile",
 
   timings: {
     fixationMs         : 500,
@@ -605,8 +649,8 @@ const CONFIG = {
   },
 
   /* ---- Practice mastery ---- */
-  practiceMasteryStreak : 5,   // consecutive correct to pass
-  practiceBatchSize     : 5,   // trials per round
+  practiceMasteryStreak : 5,
+  practiceBatchSize     : 5,
 
   nodesPerParticipant : 10,
 
@@ -1009,21 +1053,19 @@ function showScreen(id) {
 }
 
 /* ================================================================
-   CORNER LABELS, STREAK DOTS & PROGRESS
+   TAP BAR & STREAK DOTS & PROGRESS
 ================================================================ */
 
+/* "e" = left tap button, "i" = right tap button */
 function setKeyLabels(visible, eText = "", iText = "") {
-  const L = document.getElementById("key-left");
-  const R = document.getElementById("key-right");
+  const bar = document.getElementById("tap-bar");
   if (!visible) {
-    L.classList.remove("visible");
-    R.classList.remove("visible");
+    bar.classList.remove("visible");
     return;
   }
-  L.textContent = `E = ${eText}`;
-  R.textContent = `I = ${iText}`;
-  L.classList.add("visible");
-  R.classList.add("visible");
+  document.getElementById("tap-left").textContent  = eText;
+  document.getElementById("tap-right").textContent = iText;
+  bar.classList.add("visible");
 }
 
 function setB1Labels() {
@@ -1039,8 +1081,7 @@ function setB2Labels() {
 }
 
 function setStreakDots(streak, total) {
-  const disp = document.getElementById("streak-display");
-  disp.classList.add("visible");
+  document.getElementById("streak-display").classList.add("visible");
   for (let i = 0; i < total; i++) {
     const dot = document.getElementById("dot-" + i);
     if (dot) dot.classList.toggle("filled", i < streak);
@@ -1070,74 +1111,55 @@ function hideProgress() {
 }
 
 /* ================================================================
-   FULLSCREEN
-================================================================ */
-
-function requestFS() {
-  if (!CONFIG.fullscreen) return;
-  const el = document.documentElement;
-  (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
-}
-
-function isFS() {
-  return !!(document.fullscreenElement || document.webkitFullscreenElement);
-}
-
-if (CONFIG.fullscreen && CONFIG.fullscreenWarning) {
-  document.addEventListener("fullscreenchange", () => {
-    const warn = document.getElementById("fs-warning");
-    if (!isFS() && S.inTrial) warn.classList.add("visible");
-    else warn.classList.remove("visible");
-  });
-}
-document.getElementById("fs-reenter-btn").addEventListener("click", () => {
-  requestFS();
-  document.getElementById("fs-warning").classList.remove("visible");
-});
-
-/* ================================================================
-   KEY PRACTICE WIDGET
+   BUTTON DEMO (replaces keyboard key-cap demo)
 ================================================================ */
 
 function buildKeyDemo(containerId, eLabel, iLabel) {
   document.getElementById(containerId).innerHTML = `
-    <div class="key-box">
-      <div class="key-cap">E</div>
-      <div class="key-meaning">${eLabel}</div>
+    <div class="tap-demo-box">
+      <div class="tap-demo-key left">${eLabel}</div>
+      <div class="tap-demo-label">LEFT button</div>
     </div>
-    <div class="key-box">
-      <div class="key-cap">I</div>
-      <div class="key-meaning">${iLabel}</div>
+    <div class="tap-demo-box">
+      <div class="tap-demo-key right">${iLabel}</div>
+      <div class="tap-demo-label">RIGHT button</div>
     </div>`;
 }
 
-function keyPracticeWidget(statusId) {
+/* ================================================================
+   BUTTON PRACTICE WIDGET (replaces key practice)
+================================================================ */
+
+function keyPracticeWidget(statusId, eLabel, iLabel) {
   return new Promise(resolve => {
     const status = document.getElementById(statusId);
-    status.textContent = "Press E first…";
+    setKeyLabels(true, eLabel, iLabel);
+    status.textContent = "Tap the LEFT button first…";
     let eOk = false, iOk = false;
 
     function check() {
       if (eOk && iOk) {
-        status.textContent = "Both keys pressed!";
-        document.removeEventListener("keydown", handler);
+        status.textContent = "Both buttons tapped!";
+        setKeyLabels(false);
+        document.getElementById("tap-left").removeEventListener("click", leftH);
+        document.getElementById("tap-right").removeEventListener("click", rightH);
         setTimeout(resolve, 600);
       }
     }
-    function handler(e) {
-      const k = e.key.toLowerCase();
-      if (k === "e" && !eOk) {
-        eOk = true;
-        status.textContent = iOk ? "Both keys pressed!" : "E pressed. Now press I…";
-        check();
-      }
-      if (k === "i" && !iOk) {
-        iOk = true;
-        status.textContent = eOk ? "Both keys pressed!" : "I pressed. Now press E…";
-        check();
-      }
-    }
-    document.addEventListener("keydown", handler);
+    const leftH = () => {
+      if (eOk) return;
+      eOk = true;
+      status.textContent = iOk ? "Both buttons tapped!" : "Left tapped. Now tap RIGHT…";
+      check();
+    };
+    const rightH = () => {
+      if (iOk) return;
+      iOk = true;
+      status.textContent = eOk ? "Both buttons tapped!" : "Right tapped. Now tap LEFT…";
+      check();
+    };
+    document.getElementById("tap-left").addEventListener("click", leftH);
+    document.getElementById("tap-right").addEventListener("click", rightH);
   });
 }
 
@@ -1191,21 +1213,30 @@ function runTrial(trial, blockType) {
 
         _trialTimeoutId = setTimeout(() => {
           if (!S.trialActive) return;
+          cleanup();
           endTrial(trial, null, null, performance.now() - t0, true, resolve);
         }, deadline);
 
-        const handler = e => {
+        /* Tap button handlers: left = "e", right = "i" */
+        const respond = key => {
           if (!S.trialActive) return;
-          const k = e.key.toLowerCase();
-          if (k !== "e" && k !== "i") return;
           clearTimeout(_trialTimeoutId);
+          cleanup();
           const rt    = performance.now() - t0;
-          const label = Object.keys(mapping).find(m => mapping[m] === k) || null;
-          document.removeEventListener("keydown", handler);
-          endTrial(trial, k, label, rt, false, resolve);
+          const label = Object.keys(mapping).find(m => mapping[m] === key) || null;
+          endTrial(trial, key, label, rt, false, resolve);
         };
-        document.addEventListener("keydown", handler);
-        trial._keyHandler = handler;
+
+        const leftH  = () => respond("e");
+        const rightH = () => respond("i");
+
+        function cleanup() {
+          document.getElementById("tap-left").removeEventListener("click", leftH);
+          document.getElementById("tap-right").removeEventListener("click", rightH);
+        }
+
+        document.getElementById("tap-left").addEventListener("click",  leftH,  { once: true });
+        document.getElementById("tap-right").addEventListener("click", rightH, { once: true });
 
       }, T.blankMs);
     }, T.fixationMs);
@@ -1215,7 +1246,6 @@ function runTrial(trial, blockType) {
 function endTrial(trial, key, label, rt, timedOut, resolve) {
   S.trialActive = false;
   S.inTrial     = false;
-  if (trial._keyHandler) document.removeEventListener("keydown", trial._keyHandler);
 
   const singEl = document.getElementById("single-stimulus");
   const pairEl = document.getElementById("pair-stimulus");
@@ -1291,8 +1321,6 @@ function buildRow(trial, blockType) {
 
 /* ================================================================
    MASTERY PRACTICE ENGINE
-   Runs batches of BATCH_SIZE trials. Streak carries across batches.
-   Participant passes when they accumulate NEEDED correct in a row.
 ================================================================ */
 
 async function runMasteryPractice({ pool, trialFn, correctFn, blockType, labelsFn, retryMsg }) {
@@ -1315,7 +1343,7 @@ async function runMasteryPractice({ pool, trialFn, correctFn, blockType, labelsF
       setKeyLabels(false);
       document.getElementById("prac-retry-msg").textContent = retryMsg;
       showScreen("s-prac-retry");
-      await waitSpace();
+      await waitContinue();
     }
     batchNum++;
 
@@ -1368,7 +1396,7 @@ async function runBlock1() {
       document.getElementById("b1-break-badge").textContent =
         `Part 1 — Section ${b} of ${nSub} complete`;
       showScreen("s-b1-break");
-      await waitSpace();
+      await waitContinue();
       showScreen("s-trial");
       setB1Labels();
     }
@@ -1390,7 +1418,7 @@ async function runBlock2() {
       document.getElementById("b2-break-badge").textContent =
         `Part 2 — Section ${b} of ${nSub} complete`;
       showScreen("s-b2-break");
-      await waitSpace();
+      await waitContinue();
       showScreen("s-trial");
       setB2Labels();
     }
@@ -1510,12 +1538,16 @@ function showDebrief() {
    HELPERS
 ================================================================ */
 
-function waitSpace() {
+/* Replaces waitSpace() — shows the green continue button at bottom */
+function waitContinue(label = "Continue →") {
   return new Promise(resolve => {
-    const h = e => {
-      if (e.code === "Space") { document.removeEventListener("keydown", h); resolve(); }
-    };
-    document.addEventListener("keydown", h);
+    const btn = document.getElementById("tap-continue");
+    btn.textContent = label;
+    btn.style.display = "block";
+    btn.addEventListener("click", () => {
+      btn.style.display = "none";
+      resolve();
+    }, { once: true });
   });
 }
 
@@ -1538,16 +1570,16 @@ async function runExperiment() {
   showScreen("s-b1-instr");
   await buttonClick("btn-b1-instr");
 
-  /* B1 key practice */
+  /* B1 button practice */
   const b1eLabel = S.b1Mapping.good === "e" ? "GOOD" : "BAD";
   const b1iLabel = S.b1Mapping.bad  === "i" ? "BAD"  : "GOOD";
   buildKeyDemo("b1-key-demo", b1eLabel, b1iLabel);
   showScreen("s-b1-keys");
-  await keyPracticeWidget("b1-key-practice-status");
+  await keyPracticeWidget("b1-key-practice-status", b1eLabel, b1iLabel);
 
   /* B1 mastery practice */
   showScreen("s-b1-prac-start");
-  await waitSpace();
+  await waitContinue("Begin Practice");
 
   await runMasteryPractice({
     pool      : CONFIG.b1PracticePool,
@@ -1575,7 +1607,7 @@ async function runExperiment() {
   });
 
   showScreen("s-b1-prac-end");
-  await waitSpace();
+  await waitContinue("Begin Part 1");
   showScreen("s-trial");
   setB1Labels();
 
@@ -1586,7 +1618,7 @@ async function runExperiment() {
 
   /* ══════════════════ BLOCK TRANSITION ══════════════════ */
   showScreen("s-block-transition");
-  await waitSpace();
+  await waitContinue("Continue to Part 2");
 
   /* ══════════════════════ BLOCK 2 ══════════════════════ */
 
@@ -1595,16 +1627,16 @@ async function runExperiment() {
   showScreen("s-b2-instr");
   await buttonClick("btn-b2-instr");
 
-  /* B2 key practice */
-  const b2eLabel = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT GO TOGETHER";
-  const b2iLabel = S.b2Mapping.apart    === "i" ? "DO NOT GO TOGETHER" : "GO TOGETHER";
+  /* B2 button practice */
+  const b2eLabel = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT\nGO TOGETHER";
+  const b2iLabel = S.b2Mapping.apart    === "i" ? "DO NOT\nGO TOGETHER" : "GO TOGETHER";
   buildKeyDemo("b2-key-demo", b2eLabel, b2iLabel);
   showScreen("s-b2-keys");
-  await keyPracticeWidget("b2-key-practice-status");
+  await keyPracticeWidget("b2-key-practice-status", b2eLabel, b2iLabel);
 
   /* B2 mastery practice */
   showScreen("s-b2-prac-start");
-  await waitSpace();
+  await waitContinue("Begin Practice");
 
   await runMasteryPractice({
     pool      : CONFIG.b2PracticePool,
@@ -1639,7 +1671,7 @@ async function runExperiment() {
   });
 
   showScreen("s-b2-prac-end");
-  await waitSpace();
+  await waitContinue("Begin Part 2");
   showScreen("s-trial");
   setB2Labels();
 
@@ -1656,7 +1688,6 @@ async function runExperiment() {
 ================================================================ */
 
 document.getElementById("btn-welcome").addEventListener("click", () => {
-  if (CONFIG.fullscreen) requestFS();
   if (CONFIG.participantIdPrompt || CONFIG.askFirstName) {
     document.getElementById("pid-field").style.display =
       CONFIG.participantIdPrompt ? "flex" : "none";
