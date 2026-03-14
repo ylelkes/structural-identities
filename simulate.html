@@ -1367,109 +1367,153 @@ function leidenColor(commId) {
 }
 
 function leidenCommunities(nodes, edges) {
-  if (!nodes.length) return new Map();
+  /* Louvain modularity maximisation with 10 random-order restarts.
+     Returns a Map (nodeName → communityId) with .modularity and .nComm attached. */
+  if (nodes.length < 2) {
+    const r = new Map(nodes.map(n => [n.label, 0]));
+    r.modularity = 0; r.nComm = 1; return r;
+  }
   const N = nodes.length;
   const names = nodes.map(n => n.label);
   const idx   = new Map(names.map((name, i) => [name, i]));
 
-  /* Sparse weighted adjacency */
+  /* Sparse weighted adjacency — both directions stored */
   const adj = Array.from({length: N}, () => new Map());
   let m = 0;
   for (const e of edges) {
     const i = idx.get(e.n1), j = idx.get(e.n2);
     if (i == null || j == null) continue;
-    const w = (e.rtWeightedStrength || e.assocStrength || 0);
+    const w = e.rtWeightedStrength || e.assocStrength || 0;
     adj[i].set(j, (adj[i].get(j) || 0) + w);
     adj[j].set(i, (adj[j].get(i) || 0) + w);
     m += w;
   }
-  if (m === 0) return new Map(names.map((name, i) => [name, 0]));
+  if (m === 0) {
+    const r = new Map(names.map(name => [name, 0]));
+    r.modularity = 0; r.nComm = 1; return r;
+  }
 
-  /* Node strengths */
+  /* Node strengths ki (sum of incident edge weights, each direction) */
   const ki = Array.from({length: N}, (_, i) => {
     let s = 0; for (const w of adj[i].values()) s += w; return s;
   });
 
-  /* Init: each node in its own community */
-  const comm    = Array.from({length: N}, (_, i) => i);
-  const sigTot  = [...ki]; /* sum of ki for community c */
-
-  let changed = true, iter = 0;
-  while (changed && iter++ < 100) {
-    changed = false;
-    /* Randomise node visit order */
-    const order = Array.from({length: N}, (_, i) => i);
-    for (let i = order.length - 1; i > 0; i--) {
+  function fisherYates(a) {
+    for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    for (const i of order) {
-      const ci = comm[i];
-      sigTot[ci] -= ki[i];
-
-      /* k_{i,in}(ci without i) */
-      let kIinCi = 0;
-      for (const [j, w] of adj[i]) { if (comm[j] === ci) kIinCi += w; }
-
-      /* Candidate communities = neighbours' communities */
-      const cands = new Map();
-      for (const [j, w] of adj[i]) {
-        const cj = comm[j]; cands.set(cj, (cands.get(cj) || 0) + w);
-      }
-      cands.set(ci, kIinCi);
-
-      let bestC = ci, bestGain = 0;
-      for (const [c, kIinC] of cands) {
-        if (c === ci) continue;
-        /* ΔQ = (k_{i→c} − k_{i→ci}) / m − (Σtot(c) − Σtot(ci)) · ki / (2m²) */
-        const gain = (kIinC - kIinCi) / m
-                   - (sigTot[c] - sigTot[ci]) * ki[i] / (2 * m * m);
-        if (gain > bestGain) { bestGain = gain; bestC = c; }
-      }
-
-      comm[i] = bestC;
-      sigTot[bestC] += ki[i];
-      if (bestC !== ci) changed = true;
-    }
+    return a;
   }
 
-  /* Renumber by descending community size (community 0 = largest) */
+  /* One Louvain pass to convergence */
+  function runLouvain() {
+    const comm    = Array.from({length: N}, (_, i) => i);
+    const sigTot  = [...ki]; /* sum of ki for community c */
+    let changed = true, iter = 0;
+    while (changed && iter++ < 200) {
+      changed = false;
+      for (const i of fisherYates(Array.from({length: N}, (_, i) => i))) {
+        const ci = comm[i];
+        sigTot[ci] -= ki[i];
+
+        /* k_{i,in}(ci without i) */
+        let kIinCi = 0;
+        for (const [j, w] of adj[i]) { if (comm[j] === ci) kIinCi += w; }
+
+        /* Gather candidate communities from neighbours */
+        const cands = new Map();
+        for (const [j, w] of adj[i]) {
+          const cj = comm[j]; cands.set(cj, (cands.get(cj) || 0) + w);
+        }
+        cands.set(ci, kIinCi);
+
+        let bestC = ci, bestGain = 1e-10; /* strict positive threshold */
+        for (const [c, kIinC] of cands) {
+          if (c === ci) continue;
+          /* ΔQ = (k_{i→c} − k_{i→ci})/m − (Σtot(c) − Σtot(ci))·ki/(2m²) */
+          const gain = (kIinC - kIinCi) / m
+                     - (sigTot[c] - sigTot[ci]) * ki[i] / (2 * m * m);
+          if (gain > bestGain) { bestGain = gain; bestC = c; }
+        }
+        comm[i] = bestC;
+        sigTot[bestC] += ki[i];
+        if (bestC !== ci) changed = true;
+      }
+    }
+    return comm;
+  }
+
+  /* Modularity Q = Σ_in/m − Σ_c (Σtot_c / 2m)²
+     (adj stores both directions so Σ adj[i][j] for same-comm = 2·Σ_in) */
+  function computeQ(comm) {
+    let doubleIn = 0;
+    const st = {};
+    for (let i = 0; i < N; i++) {
+      const c = comm[i];
+      st[c] = (st[c] || 0) + ki[i];
+      for (const [j, w] of adj[i]) { if (comm[j] === c) doubleIn += w; }
+    }
+    let Q = doubleIn / (2 * m);
+    for (const s of Object.values(st)) Q -= (s / (2 * m)) ** 2;
+    return Q;
+  }
+
+  /* 10 restarts — keep partition with highest Q */
+  let bestComm = null, bestQ = -Infinity;
+  for (let r = 0; r < 10; r++) {
+    const comm = runLouvain();
+    const Q    = computeQ(comm);
+    if (Q > bestQ) { bestQ = Q; bestComm = [...comm]; }
+  }
+
+  /* Renumber communities 0, 1, … by descending size */
   const freq = new Map();
-  for (const c of comm) freq.set(c, (freq.get(c) || 0) + 1);
-  const sorted  = [...freq.entries()].sort((a, b) => b[1] - a[1]);
-  const renum   = new Map(sorted.map(([c], i) => [c, i]));
-  return new Map(names.map((name, i) => [name, renum.get(comm[i])]));
+  for (const c of bestComm) freq.set(c, (freq.get(c) || 0) + 1);
+  const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]);
+  const renum  = new Map(sorted.map(([c], i) => [c, i]));
+
+  const result = new Map(names.map((name, i) => [name, renum.get(bestComm[i])]));
+  result.modularity = +bestQ.toFixed(3);
+  result.nComm      = freq.size;
+  return result;
 }
 
-/* ── Render: Leiden community cards + interactive button wiring ── */
-function renderLeidenSection(nodes, edges) {
+/* ── Render: Leiden community cards ── */
+function renderLeidenSection(nodes, edges, camp) {
   const commMap = leidenCommunities(nodes, edges);
+  const Q       = commMap.modularity;
+  const nComm   = commMap.nComm;
 
-  /* Group by community */
+  /* Group nodes by community */
   const groups = new Map();
   for (const [name, cid] of commMap) {
     if (!groups.has(cid)) groups.set(cid, []);
     const node = nodes.find(n => n.label === name);
     if (node) groups.get(cid).push(node);
   }
-  const nComm = groups.size;
 
-  let html = `<p style="color:#555;font-size:0.8rem;margin-bottom:14px">`
-    + `${nComm} communit${nComm === 1 ? 'y' : 'ies'} detected</p>`;
+  /* Quality note */
+  const qColor = Q > 0.25 ? "#5a9" : Q > 0.1 ? "#e8a030" : "#c0392b";
+  const allNote = (camp === "All")
+    ? `<span style="color:#666;font-size:0.75rem"> · Partisan pairs cancel across camps — switch to Liberal/Conservative for cleaner structure</span>`
+    : "";
+
+  let html = `<p style="margin-bottom:14px;font-size:0.8rem">`
+    + `<span style="color:${qColor};font-weight:bold">${nComm} communit${nComm === 1 ? 'y' : 'ies'}</span>`
+    + `  <span style="color:#555">·  modularity Q = <span style="color:${qColor}">${Q.toFixed(3)}</span></span>`
+    + allNote + `</p>`;
+
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:18px">`;
   for (const [cid, cnodes] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
     const col = leidenColor(cid);
     const sorted = [...cnodes].sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label));
-    html += `<div style="background:#111;border:1px solid #1e1e1e;border-top:3px solid ${col};`
-          + `border-radius:5px;padding:12px 14px">`;
-    html += `<div style="color:${col};font-size:0.82rem;font-weight:bold;margin-bottom:6px">`
-          + `Community ${cid + 1}</div>`;
-    html += `<div style="font-size:0.75rem;color:#555;margin-bottom:8px">`
-          + `${sorted.length} node${sorted.length !== 1 ? 's' : ''}</div>`;
+    html += `<div style="background:#111;border:1px solid #1e1e1e;border-top:3px solid ${col};border-radius:5px;padding:12px 14px">`;
+    html += `<div style="color:${col};font-size:0.82rem;font-weight:bold;margin-bottom:4px">Community ${cid + 1}</div>`;
+    html += `<div style="font-size:0.75rem;color:#555;margin-bottom:8px">${sorted.length} node${sorted.length !== 1 ? 's' : ''}</div>`;
     html += sorted.map(n => {
       const cc = CAT_COLORS[n.category] || '#aaa';
-      return `<div style="padding:2px 0;font-size:0.8rem;color:#ccc">`
-           + `<span style="color:${cc}">●</span> ${n.label}</div>`;
+      return `<div style="padding:2px 0;font-size:0.8rem;color:#ccc"><span style="color:${cc}">●</span> ${n.label}</div>`;
     }).join('');
     html += `</div>`;
   }
@@ -1943,7 +1987,7 @@ function runAnalysis() {
       leidenBtn.disabled = true;
       return;
     }
-    _leidenCommMap = renderLeidenSection(d.nodes, d.edges);
+    _leidenCommMap = renderLeidenSection(d.nodes, d.edges, camp);
     leidenBtn.disabled = false;
     leidenBtn.textContent = `↗ Open Community Network${camp === "All" ? "" : " — " + camp}`;
     leidenBtn.onclick = () => {
@@ -1955,7 +1999,7 @@ function runAnalysis() {
     };
   }
 
-  updateLeiden("All");
+  updateLeiden(_leidenCamp);
   setupCampTabs("leiden-tabs", camp => { _leidenCamp = camp; updateLeiden(camp); });
 }
 </script>
