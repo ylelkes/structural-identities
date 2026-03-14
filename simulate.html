@@ -1588,8 +1588,7 @@ function runAnalysis() {
   // so liberals see Democrats as good/blue, conservatives see them as bad/red, etc.
   function campB1(camp) {
     if (camp === "All") return _b1Sum;
-    const pids = new Set(_b2Sum.filter(r => CAMP_MAP[r.participant_type] === camp).map(r => r.participant_id));
-    return _b1Sum.filter(r => pids.has(r.participant_id));
+    return _b1Sum.filter(r => CAMP_MAP[r.participant_type] === camp);
   }
 
   // Precompute all camp data
