@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Evaluation & Association Task</title>
+<title>Evaluation &amp; Association Task</title>
 <style>
 /* ================================================================
    RESET & BASE
@@ -188,7 +188,29 @@ label { font-size: 0.95rem; color: #bbb; }
   background: #1e1e1e;
 }
 .key-meaning { font-size: 0.9rem; color: #aaa; max-width: 130px; line-height: 1.35; }
-#key-practice-status { min-height: 1.4em; color: var(--warn); font-size: 0.95rem; }
+.key-practice-status { min-height: 1.4em; color: var(--warn); font-size: 0.95rem; }
+
+/* ================================================================
+   PRACTICE STREAK DOTS
+================================================================ */
+#streak-display {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 8px;
+  align-items: center;
+}
+#streak-display.visible { display: flex; }
+.streak-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #333;
+  border: 2px solid #555;
+  transition: background 0.15s, border-color 0.15s;
+}
+.streak-dot.filled { background: var(--accent); border-color: var(--accent); }
 
 /* ================================================================
    TRIAL AREA
@@ -261,6 +283,15 @@ label { font-size: 0.95rem; color: #bbb; }
   <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
   <div id="progress-text"></div>
 
+  <!-- Practice streak dots -->
+  <div id="streak-display">
+    <div class="streak-dot" id="dot-0"></div>
+    <div class="streak-dot" id="dot-1"></div>
+    <div class="streak-dot" id="dot-2"></div>
+    <div class="streak-dot" id="dot-3"></div>
+    <div class="streak-dot" id="dot-4"></div>
+  </div>
+
   <!-- Fullscreen re-entry overlay -->
   <div id="fs-warning">
     <h2>Please return to fullscreen</h2>
@@ -274,15 +305,16 @@ label { font-size: 0.95rem; color: #bbb; }
   <div class="screen active" id="s-welcome">
     <h1>Evaluation &amp; Association Study</h1>
     <p>
-      In this study you will complete two short computer tasks involving everyday words and concepts.
+      In this study you will complete a short computer task involving everyday words and concepts.
       You will respond using only the keyboard.
     </p>
     <p>
       Your participation is voluntary and your responses are anonymous.
-      The full task takes approximately <strong>10–15 minutes</strong>.
+      The full task takes approximately <strong>8–12 minutes</strong>.
     </p>
     <p class="small">By clicking "Begin" you agree to participate in this study.</p>
     <button id="btn-welcome">Begin</button>
+    <p class="small" style="margin-top:24px;"><a href="index.html" style="color:#555;text-decoration:none;font-size:0.75rem;">← Project home</a></p>
   </div>
 
   <!-- ============================================================
@@ -307,42 +339,37 @@ label { font-size: 0.95rem; color: #bbb; }
   <div class="screen" id="s-general-instr">
     <div class="tag">Overview</div>
     <h2>What you will do</h2>
+    <p>This study has <strong>two short parts</strong>.</p>
     <p>
-      This study has <strong>two parts</strong>:
+      In <strong>Part 1</strong>, you will see words or phrases appear on the screen
+      one at a time. Press <strong>E</strong> or <strong>I</strong> to rate each one
+      as <strong>GOOD</strong> or <strong>BAD</strong>.
     </p>
     <p>
-      <strong>Part 1 — Evaluation:</strong> You will see <em>one word or phrase</em> at a time
-      and quickly press a key to indicate whether it feels <strong>good</strong> or <strong>bad</strong> to you.
-    </p>
-    <p>
-      <strong>Part 2 — Association:</strong> You will see <em>two words or phrases</em> at a time
-      and quickly press a key to indicate whether they <strong>go together</strong> or
+      In <strong>Part 2</strong>, you will see <strong>two items side-by-side</strong>
+      and press a key to say whether they <strong>go together</strong> or
       <strong>do not go together</strong> in your mind.
     </p>
     <p>
-      There are <strong>no right or wrong answers</strong> in either part.
-      Please respond as <strong>quickly and instinctively</strong> as you can.
+      Please respond as <strong>quickly and instinctively</strong> as you can —
+      both speed and accuracy matter.
     </p>
-    <button id="btn-general-instr">Continue to Part 1</button>
+    <button id="btn-general-instr">Continue</button>
   </div>
 
   <!-- ============================================================
        S04 — BLOCK 1 INSTRUCTIONS
   ============================================================ -->
   <div class="screen" id="s-b1-instr">
-    <div class="tag">Part 1 — Evaluation</div>
+    <div class="tag">Part 1 — Evaluation Task</div>
     <h2>Instructions</h2>
     <p>
-      You will see <strong>one item</strong> appear on the screen. Your task is to indicate
-      whether that item feels <strong>GOOD</strong> or <strong>BAD</strong> to you.
+      You will see <strong>one word or phrase</strong> at a time.
+      Your task is to judge whether it is <strong>GOOD</strong> or <strong>BAD</strong>.
     </p>
     <p>
-      There are no right or wrong answers. We are interested in your immediate gut feeling.
-      Please respond as <strong>quickly and intuitively</strong> as you can.
-    </p>
-    <p>
-      You must respond within <strong id="b1-deadline-display"></strong> seconds or the trial
-      will time out and you will be asked to respond faster.
+      Go with your <strong>first instinct</strong> — there are no trick questions.
+      You must respond within <strong id="b1-deadline-display"></strong> seconds.
     </p>
     <button id="btn-b1-instr">Continue to Key Practice</button>
   </div>
@@ -355,7 +382,7 @@ label { font-size: 0.95rem; color: #bbb; }
     <h2>Learn the Keys</h2>
     <div class="key-demo" id="b1-key-demo"></div>
     <p>Press each key once to practice the response mapping.</p>
-    <div id="key-practice-status"></div>
+    <div class="key-practice-status" id="b1-key-practice-status"></div>
   </div>
 
   <!-- ============================================================
@@ -365,10 +392,24 @@ label { font-size: 0.95rem; color: #bbb; }
     <div class="tag">Part 1 — Practice</div>
     <h2>Practice Round</h2>
     <p>
-      You will now complete a few <strong>practice trials</strong> with simple everyday words,
-      so you can get used to the task.
+      You will now see a few practice words. Rate each as <strong>GOOD</strong> or
+      <strong>BAD</strong> as quickly as you can.
+    </p>
+    <p>
+      You need to get <strong>5 correct in a row</strong> before the real task begins.
+      If you don't, you'll get a few more practice trials.
     </p>
     <p>Press <strong>SPACE</strong> to begin practice.</p>
+  </div>
+
+  <!-- ============================================================
+       SHARED — PRACTICE RETRY
+  ============================================================ -->
+  <div class="screen" id="s-prac-retry">
+    <div class="tag">Practice</div>
+    <h2>Not quite!</h2>
+    <p id="prac-retry-msg"></p>
+    <p>Press <strong>SPACE</strong> to try again.</p>
   </div>
 
   <!-- ============================================================
@@ -376,10 +417,13 @@ label { font-size: 0.95rem; color: #bbb; }
   ============================================================ -->
   <div class="screen" id="s-b1-prac-end">
     <div class="tag">Part 1 — Practice Complete</div>
-    <h2>Ready for Part 1</h2>
-    <p>Great job! The real trials will now begin. The items will be real concepts.</p>
-    <p>Remember: respond <strong>quickly and intuitively</strong>. There are no right or wrong answers.</p>
-    <p>Press <strong>SPACE</strong> to begin.</p>
+    <h2>Great job!</h2>
+    <p>
+      The real trials will now begin. You will rate the same types of concepts —
+      groups, policies, and values.
+    </p>
+    <p>Remember: respond <strong>quickly and instinctively</strong>.</p>
+    <p>Press <strong>SPACE</strong> to begin Part 1.</p>
   </div>
 
   <!-- ============================================================
@@ -392,20 +436,23 @@ label { font-size: 0.95rem; color: #bbb; }
   </div>
 
   <!-- ============================================================
-       S09 — BETWEEN BLOCKS BREAK
+       S09 — BLOCK TRANSITION (B1 → B2)
   ============================================================ -->
-  <div class="screen" id="s-mid-break">
-    <div class="block-badge">Part 1 Complete</div>
-    <h2>Short Break</h2>
-    <p>You have finished the evaluation task. Take a moment to rest.</p>
-    <p>Part 2 will begin shortly. Press <strong>SPACE</strong> when you are ready.</p>
+  <div class="screen" id="s-block-transition">
+    <div class="tag">Part 1 Complete</div>
+    <h2>Well done!</h2>
+    <p>
+      You have finished Part 1. Now you will move on to <strong>Part 2</strong>,
+      where you will judge pairs of items.
+    </p>
+    <p>Press <strong>SPACE</strong> to continue.</p>
   </div>
 
   <!-- ============================================================
        S10 — BLOCK 2 INSTRUCTIONS
   ============================================================ -->
   <div class="screen" id="s-b2-instr">
-    <div class="tag">Part 2 — Association</div>
+    <div class="tag">Part 2 — Association Task</div>
     <h2>Instructions</h2>
     <p>
       You will see <strong>two items</strong> appear side-by-side on the screen.
@@ -431,7 +478,7 @@ label { font-size: 0.95rem; color: #bbb; }
     <h2>Learn the Keys</h2>
     <div class="key-demo" id="b2-key-demo"></div>
     <p>Press each key once to practice the response mapping.</p>
-    <div id="b2-key-practice-status"></div>
+    <div class="key-practice-status" id="b2-key-practice-status"></div>
   </div>
 
   <!-- ============================================================
@@ -441,8 +488,12 @@ label { font-size: 0.95rem; color: #bbb; }
     <div class="tag">Part 2 — Practice</div>
     <h2>Practice Round</h2>
     <p>
-      You will now complete a few <strong>practice trials</strong> with simple everyday pairs,
-      so you can get used to responding with "go together" or "do not go together."
+      You will now see a few practice pairs. Judge whether each pair
+      <strong>goes together</strong> or <strong>does not go together</strong>.
+    </p>
+    <p>
+      You need <strong>5 correct in a row</strong> to move on.
+      If you don't get them, you'll try a few more.
     </p>
     <p>Press <strong>SPACE</strong> to begin practice.</p>
   </div>
@@ -452,13 +503,13 @@ label { font-size: 0.95rem; color: #bbb; }
   ============================================================ -->
   <div class="screen" id="s-b2-prac-end">
     <div class="tag">Part 2 — Practice Complete</div>
-    <h2>Ready for Part 2</h2>
+    <h2>Ready to Begin</h2>
     <p>
       Great job! The real trials will now begin. The items will be real concepts —
-      groups, policies, and self-related words.
+      groups, policies, and values.
     </p>
     <p>Remember: respond <strong>quickly and instinctively</strong>.</p>
-    <p>Press <strong>SPACE</strong> to begin.</p>
+    <p>Press <strong>SPACE</strong> to begin Part 2.</p>
   </div>
 
   <!-- ============================================================
@@ -490,8 +541,8 @@ label { font-size: 0.95rem; color: #bbb; }
   <div class="screen" id="s-debrief">
     <h1>Thank You!</h1>
     <p>
-      You have completed both parts of the study. This research examines how people
-      evaluate individual concepts and perceive associations between them.
+      You have completed the study. This research examines how people perceive
+      and evaluate everyday concepts.
     </p>
     <p id="debrief-stats" class="small"></p>
     <hr>
@@ -499,8 +550,8 @@ label { font-size: 0.95rem; color: #bbb; }
     <div class="dl-grid">
       <button id="dl-trial-csv">Trial Data (CSV)</button>
       <button id="dl-trial-json">Trial Data (JSON)</button>
-      <button id="dl-b1-summary">Part 1 Summary (CSV)</button>
-      <button id="dl-b2-summary">Part 2 Summary (CSV)</button>
+      <button id="dl-b1-summary">Evaluation Summary (CSV)</button>
+      <button id="dl-b2-summary">Association Summary (CSV)</button>
     </div>
     <p class="small">If you have any questions about this study, please contact the researcher.</p>
   </div>
@@ -510,61 +561,55 @@ label { font-size: 0.95rem; color: #bbb; }
 <script>
 "use strict";
 /* ================================================================
-   CONFIGURATION — edit everything here
+   CONFIGURATION
 ================================================================ */
 const CONFIG = {
 
-  /* ---- Participant options ---- */
   participantIdPrompt : true,
   askFirstName        : true,
+  fullscreen          : true,
+  fullscreenWarning   : true,
+  experimentVersion   : "2.0.0",
 
-  /* ---- Display ---- */
-  fullscreen        : true,
-  fullscreenWarning : true,
-
-  /* ---- Experiment version tag (saved in data) ---- */
-  experimentVersion : "1.0.0",
-
-  /* ---- Timings (ms) ---- */
   timings: {
     fixationMs         : 500,
     blankMs            : 100,
-    block1DeadlineMs   : 1500,
-    block2DeadlineMs   : 2000,
+    block2DeadlineMs   : 4000,
     itiMs              : 250,
-    timeoutFeedbackMs  : 500
+    timeoutFeedbackMs  : 600,
+    incorrectFeedbackMs: 600
   },
 
   /* ---- Block 1 settings ---- */
   block1: {
     enabled              : true,
-    repetitionsPerTarget : 4,    // total reps across all sub-blocks → 10 nodes × 4 = 40 B1 trials
-    subBlocks            : 2,    // how many sub-blocks to split Block 1 into
-    keyMappingMode       : "counterbalance", // "fixed" or "counterbalance"
-    fixedMapping         : { good: "e", bad: "i" }
+    repetitionsPerNode   : 2,
+    subBlocks            : 2,
+    deadlineMs           : 3000,
+    keyMappingMode       : "counterbalance"
   },
 
   /* ---- Block 2 settings ---- */
   block2: {
     enabled               : true,
-    repetitionsPerPair    : 1,    // reps for non-self pairs  → 36 pairs × 1 = 36 B2 trials
-    repetitionsPerMePair  : 2,    // reps for pairs involving the self node → 9 × 2 = 18
-    subBlocks             : 2,    // must divide both rep counts evenly
-    keyMappingMode        : "counterbalance",
-    fixedMapping          : { together: "e", apart: "i" }
-    // pairMode is always "all" within each participant's selected node set
+    repetitionsPerPair    : 1,
+    repetitionsPerMePair  : 2,
+    subBlocks             : 2,
+    keyMappingMode        : "counterbalance"
   },
 
-  // Each participant sees this many nodes (me is always one of them).
-  // The rest are drawn randomly from the full pool of 20 nodes below.
-  // With 10 nodes: 40 B1 + (9 me-pairs × 2 + 36 other-pairs × 1) = 94 trials total.
+  /* ---- Practice mastery ---- */
+  practiceMasteryStreak : 5,   // consecutive correct to pass
+  practiceBatchSize     : 5,   // trials per round
+
   nodesPerParticipant : 10,
 
-  /* ---- Full node pool (20 nodes: 10 identity, 5 policy, 5 values) ---- */
-  // Only `nodesPerParticipant` of these are shown to any given participant.
-  // "me" (alwaysInclude: true) is guaranteed to be one of the 10.
+  /* ================================================================
+     FULL NODE POOL
+     10 identity · 9 policy (3 morality, 3 economy, 3 non-partisan) · 5 values
+  ================================================================ */
   nodes: [
-    // --- Identity (10, me always included) ---
+    // ── Identity (10) ──────────────────────────────────────────
     { category: "identity", label: "me",
       stimuli: ["me", "myself", "my values", "my life"],
       alwaysInclude: true, includeFirstName: true },
@@ -587,25 +632,49 @@ const CONFIG = {
     { category: "identity", label: "poor people",
       stimuli: ["poor people", "low-income Americans", "people in poverty"] },
 
-    // --- Policy (5) ---
-    { category: "policy", label: "stricter gun laws",
-      stimuli: ["stricter gun laws", "gun control", "assault weapon bans",
-                "universal background checks"] },
-    { category: "policy", label: "abortion access",
+    // ── Policy: Morality (3) ────────────────────────────────────
+    { category: "policy", subcategory: "morality",
+      label: "abortion access",
       stimuli: ["abortion access", "abortion rights", "reproductive rights",
                 "the right to an abortion"] },
-    { category: "policy", label: "universal health care",
-      stimuli: ["universal health care", "Medicare for All",
-                "government-provided health insurance", "single-payer health care"] },
-    { category: "policy", label: "cutting taxes",
+    { category: "policy", subcategory: "morality",
+      label: "same-sex marriage",
+      stimuli: ["same-sex marriage", "gay marriage", "marriage equality"] },
+    { category: "policy", subcategory: "morality",
+      label: "capital punishment",
+      stimuli: ["capital punishment", "the death penalty",
+                "executing convicted criminals"] },
+
+    // ── Policy: Economy (3) ─────────────────────────────────────
+    { category: "policy", subcategory: "economy",
+      label: "cutting taxes",
       stimuli: ["cutting taxes", "tax cuts", "lower taxes",
                 "reducing the tax burden"] },
-    { category: "policy", label: "restricting immigration",
-      stimuli: ["restricting immigration", "immigration restrictions",
-                "building the border wall", "deporting immigrants",
-                "stricter border security"] },
+    { category: "policy", subcategory: "economy",
+      label: "raising the minimum wage",
+      stimuli: ["raising the minimum wage", "a higher minimum wage",
+                "increasing the federal minimum wage"] },
+    { category: "policy", subcategory: "economy",
+      label: "universal health care",
+      stimuli: ["universal health care", "Medicare for All",
+                "government-provided health insurance"] },
 
-    // --- Values (5) ---
+    // ── Policy: Non-partisan / low-salience (3) ─────────────────
+    { category: "policy", subcategory: "nonpartisan",
+      label: "paying college athletes",
+      stimuli: ["paying college athletes", "NIL deals for student athletes",
+                "college athletes earning money"] },
+    { category: "policy", subcategory: "nonpartisan",
+      label: "disaster relief funding",
+      stimuli: ["disaster relief funding",
+                "government assistance for natural disaster victims",
+                "federal aid after natural disasters"] },
+    { category: "policy", subcategory: "nonpartisan",
+      label: "regulating AI companies",
+      stimuli: ["regulating AI companies", "AI regulation",
+                "government oversight of artificial intelligence"] },
+
+    // ── Values (5) ──────────────────────────────────────────────
     { category: "values", label: "freedom",
       stimuli: ["freedom", "individual freedom", "personal liberty"] },
     { category: "values", label: "equality",
@@ -618,17 +687,41 @@ const CONFIG = {
       stimuli: ["compassion", "caring for others", "helping the vulnerable"] }
   ],
 
-  /* ---- Practice stimuli ---- */
-  block1PracticeTargets: [
-    { category: "practice", label: "sunshine", stimuli: ["sunshine"] },
-    { category: "practice", label: "garbage",  stimuli: ["garbage"]  },
-    { category: "practice", label: "music",    stimuli: ["music"]    }
+  /* ---- Block 1 practice pool (unambiguous good/bad) ---- */
+  b1PracticePool: [
+    { label: "world peace",  correct: "good" },
+    { label: "happiness",    correct: "good" },
+    { label: "puppies",      correct: "good" },
+    { label: "sunshine",     correct: "good" },
+    { label: "kindness",     correct: "good" },
+    { label: "laughter",     correct: "good" },
+    { label: "vacation",     correct: "good" },
+    { label: "music",        correct: "good" },
+    { label: "cancer",       correct: "bad"  },
+    { label: "sadness",      correct: "bad"  },
+    { label: "war",          correct: "bad"  },
+    { label: "cruelty",      correct: "bad"  },
+    { label: "poverty",      correct: "bad"  },
+    { label: "disease",      correct: "bad"  },
+    { label: "pain",         correct: "bad"  },
+    { label: "hatred",       correct: "bad"  }
   ],
-  block2PracticePairs: [
-    ["sunshine", "happiness"],
-    ["garbage",  "vacation"],
-    ["music",    "fun"],
-    ["illness",  "comfort"]
+
+  /* ---- Block 2 practice pool (unambiguous together/apart) ---- */
+  b2PracticePool: [
+    { pair: ["ice cream",  "summer"],       correct: "together" },
+    { pair: ["sledding",   "winter"],       correct: "together" },
+    { pair: ["birthday",   "cake"],         correct: "together" },
+    { pair: ["rain",       "umbrella"],     correct: "together" },
+    { pair: ["swimming",   "beach"],        correct: "together" },
+    { pair: ["popcorn",    "movies"],       correct: "together" },
+    { pair: ["fire",       "warmth"],       correct: "together" },
+    { pair: ["ice cream",  "blizzard"],     correct: "apart"    },
+    { pair: ["swimming",   "snowstorm"],    correct: "apart"    },
+    { pair: ["sunshine",   "thunderstorm"], correct: "apart"    },
+    { pair: ["beach",      "winter coat"],  correct: "apart"    },
+    { pair: ["birthday",   "funeral"],      correct: "apart"    },
+    { pair: ["fire",       "ice"],          correct: "apart"    }
   ]
 };
 
@@ -636,33 +729,24 @@ const CONFIG = {
    RUNTIME STATE
 ================================================================ */
 const S = {
-  /* Participant */
   participantId    : "",
   firstName        : "",
-
-  /* Resolved nodes keyed by label */
   nodeMap          : {},
 
   /* Block 1 */
-  b1Mapping        : {},          // { good: "e", bad: "i" } or reversed
-  b1MappingCond    : "",          // string tag saved in data
-  b1Targets        : [],          // resolved active node list
-  b1TrialList      : [],          // flat ordered list of b1 trial objects
-  b1SubBlockBounds : [],          // [0, n1, n2, total]
-  b1PracticeTrials : [],
+  b1Mapping        : {},
+  b1MappingCond    : "",
+  b1TrialList      : [],
+  b1SubBlockBounds : [],
 
   /* Block 2 */
   b2Mapping        : {},
   b2MappingCond    : "",
-  b2Pairs          : [],          // resolved pair objects
+  b2Pairs          : [],
   b2TrialList      : [],
   b2SubBlockBounds : [],
-  b2PracticeTrials : [],
 
-  /* All collected trial rows (both blocks) */
   trialData        : [],
-
-  /* Internal trial control */
   trialActive      : false,
   inTrial          : false
 };
@@ -671,7 +755,6 @@ const S = {
    UTILITY FUNCTIONS
 ================================================================ */
 
-/** Fisher-Yates in-place shuffle */
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -680,10 +763,8 @@ function shuffle(arr) {
   return arr;
 }
 
-/** Random element from array */
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-/** Median of a numeric array (strips nulls/NaN) */
 function median(arr) {
   const v = arr.filter(x => x != null && !isNaN(x)).sort((a, b) => a - b);
   if (!v.length) return null;
@@ -691,19 +772,13 @@ function median(arr) {
   return v.length % 2 === 0 ? (v[m - 1] + v[m]) / 2 : v[m];
 }
 
-/** Round to N decimal places */
 function round(n, dp = 4) {
   if (n == null) return null;
   return parseFloat(n.toFixed(dp));
 }
 
-/** Auto-generated participant ID */
 function genId() { return "P" + Math.random().toString(36).slice(2, 9).toUpperCase(); }
 
-/**
- * Reorder array to avoid >2 consecutive identical values (greedy).
- * keyFn extracts the comparison key from each element.
- */
 function reorderAvoidRepeats(arr, keyFn) {
   const a = [...arr];
   for (let i = 2; i < a.length; i++) {
@@ -718,7 +793,6 @@ function reorderAvoidRepeats(arr, keyFn) {
   return a;
 }
 
-/** Convert array of objects to CSV string */
 function toCSV(rows) {
   if (!rows.length) return "";
   const cols = Object.keys(rows[0]);
@@ -732,7 +806,6 @@ function toCSV(rows) {
   ].join("\n");
 }
 
-/** Trigger a file download in the browser */
 function downloadFile(content, filename, type) {
   const blob = new Blob([content], { type });
   const url  = URL.createObjectURL(blob);
@@ -744,14 +817,12 @@ function downloadFile(content, filename, type) {
 }
 
 /* ================================================================
-   SETUP — called once after participant info is collected
+   SETUP
 ================================================================ */
 
 function setup() {
-  /* Participant ID */
   S.participantId = S.participantId || genId();
 
-  /* Select node subset: always-include nodes + random draw from the rest */
   const alwaysNodes = CONFIG.nodes.filter(n => n.alwaysInclude);
   const poolNodes   = CONFIG.nodes.filter(n => !n.alwaysInclude);
   const nRandom     = CONFIG.nodesPerParticipant - alwaysNodes.length;
@@ -760,7 +831,6 @@ function setup() {
     ...shuffle([...poolNodes]).slice(0, nRandom)
   ];
 
-  /* Build nodeMap from the selected subset, applying first-name personalisation */
   S.nodeMap = {};
   for (const node of selectedNodes) {
     const n = { ...node, stimuli: [...(node.stimuli || [])] };
@@ -770,57 +840,46 @@ function setup() {
     S.nodeMap[n.label] = n;
   }
 
-  /* Block 1 */
   if (CONFIG.block1.enabled) {
-    S.b1Mapping     = resolveMapping(CONFIG.block1);
-    S.b1MappingCond = mappingTag("b1", S.b1Mapping, ["good","bad"]);
-    S.b1Targets     = Object.values(S.nodeMap);
-    S.b1TrialList   = generateB1Trials();
+    S.b1Mapping        = resolveMapping(CONFIG.block1, false);
+    S.b1MappingCond    = mappingTag(S.b1Mapping);
+    S.b1TrialList      = generateB1Trials();
     S.b1SubBlockBounds = subBlockBounds(S.b1TrialList.length, CONFIG.block1.subBlocks);
-    S.b1PracticeTrials = generateB1Practice();
   }
 
-  /* Block 2 */
   if (CONFIG.block2.enabled) {
-    S.b2Mapping     = resolveMapping(CONFIG.block2, true);
-    S.b2MappingCond = mappingTag("b2", S.b2Mapping, ["together","apart"]);
-    S.b2Pairs       = generatePairs();
-    S.b2TrialList   = generateB2Trials();
+    S.b2Mapping        = resolveMapping(CONFIG.block2, true);
+    S.b2MappingCond    = mappingTag(S.b2Mapping);
+    S.b2Pairs          = generatePairs();
+    S.b2TrialList      = generateB2Trials();
     S.b2SubBlockBounds = subBlockBounds(S.b2TrialList.length, CONFIG.block2.subBlocks);
-    S.b2PracticeTrials = generateB2Practice();
   }
 }
 
 /* ---- Key mapping helpers ---- */
 
-function resolveMapping(blockCfg, isPair = false) {
+function resolveMapping(blockCfg, isPair) {
   if (blockCfg.keyMappingMode === "counterbalance") {
     const flip = Math.random() < 0.5;
-    if (isPair) {
+    if (isPair)
       return flip ? { together: "e", apart: "i" } : { together: "i", apart: "e" };
-    } else {
+    else
       return flip ? { good: "e", bad: "i" } : { good: "i", bad: "e" };
-    }
   }
-  return { ...blockCfg.fixedMapping };
+  return { ...(blockCfg.fixedMapping || {}) };
 }
 
-function mappingTag(block, mapping, keys) {
-  // e.g. "E=good,I=bad"
-  const parts = ["e", "i"].map(k => {
-    const meaning = Object.keys(mapping).find(m => mapping[m] === k);
-    return `${k.toUpperCase()}=${meaning}`;
-  });
-  return parts.join(",");
+function mappingTag(mapping) {
+  return ["e","i"].map(k => {
+    const m = Object.keys(mapping).find(m => mapping[m] === k);
+    return `${k.toUpperCase()}=${m}`;
+  }).join(",");
 }
-
-/* ---- Sub-block boundary computation ---- */
 
 function subBlockBounds(total, nSubBlocks) {
   const bounds = [0];
-  for (let b = 1; b <= nSubBlocks; b++) {
+  for (let b = 1; b <= nSubBlocks; b++)
     bounds.push(Math.round(b * total / nSubBlocks));
-  }
   return bounds;
 }
 
@@ -830,50 +889,41 @@ function subBlockBounds(total, nSubBlocks) {
 
 function makeB1Trial(node, subBlock, trialIndex) {
   return {
-    taskType         : "single_target",
-    blockName        : "block1",
-    subBlockNumber   : subBlock,
-    trialIndex       : trialIndex,
-    targetLabel      : node.label,
-    targetCategory   : node.category,
-    stimulusPresented: pick(node.stimuli),
-    responseKey      : null,
-    responseLabel    : null,
-    rtMs             : null,
-    timeout          : 0,
-    trialStartTs     : null
+    taskType       : "single_target",
+    blockName      : "block1",
+    subBlockNumber : subBlock,
+    trialIndex     : trialIndex,
+    targetLabel    : node.label,
+    targetCategory : node.category,
+    targetSubcategory: node.subcategory || "",
+    stimPresented  : pick(node.stimuli || [node.label]),
+    responseKey    : null,
+    responseLabel  : null,
+    rtMs           : null,
+    timeout        : 0,
+    trialStartTs   : null
   };
 }
 
 function generateB1Trials() {
-  const targets  = S.b1Targets;
-  const reps     = CONFIG.block1.repetitionsPerTarget;
-  const nSub     = CONFIG.block1.subBlocks;
+  const nodes = Object.values(S.nodeMap);
+  const nSub  = CONFIG.block1.subBlocks;
+  const reps  = CONFIG.block1.repetitionsPerNode;
   const subArrays = Array.from({ length: nSub }, () => []);
 
-  for (const node of targets) {
-    for (let r = 0; r < reps; r++) {
+  for (const node of nodes) {
+    for (let r = 0; r < reps; r++)
       subArrays[r % nSub].push(node);
-    }
   }
 
   const allTrials = [];
   let idx = 0;
   for (let b = 0; b < nSub; b++) {
-    let arr = shuffle(subArrays[b]);
-    arr = reorderAvoidRepeats(arr, n => n.label);
-    for (const node of arr) {
+    const arr = shuffle([...subArrays[b]]);
+    for (const node of arr)
       allTrials.push(makeB1Trial(node, b + 1, idx++));
-    }
   }
   return allTrials;
-}
-
-function generateB1Practice() {
-  const trials = shuffle([...CONFIG.block1PracticeTargets]).map((t, i) =>
-    ({ ...makeB1Trial(t, 0, i), isPractice: true })
-  );
-  return trials;
 }
 
 /* ================================================================
@@ -921,13 +971,12 @@ function generateB2Trials() {
   const subArrays = Array.from({ length: nSub }, () => []);
 
   for (const pair of pairs) {
-    const isMePair = pair.node1.category === "self" || pair.node2.category === "self";
+    const isMePair = pair.node1.label === "me" || pair.node2.label === "me";
     const reps = isMePair
       ? CONFIG.block2.repetitionsPerMePair
       : CONFIG.block2.repetitionsPerPair;
-    for (let r = 0; r < reps; r++) {
+    for (let r = 0; r < reps; r++)
       subArrays[r % nSub].push(pair);
-    }
   }
 
   const allTrials = [];
@@ -935,37 +984,10 @@ function generateB2Trials() {
   for (let b = 0; b < nSub; b++) {
     let arr = shuffle(subArrays[b]);
     arr = reorderAvoidRepeats(arr, p => p.id);
-    for (const pair of arr) {
+    for (const pair of arr)
       allTrials.push(makeB2Trial(pair, b + 1, idx++));
-    }
   }
   return allTrials;
-}
-
-function generateB2Practice() {
-  const pairs = shuffle([...CONFIG.block2PracticePairs]);
-  return pairs.map(([a, b], i) => {
-    const flip = Math.random() < 0.5;
-    return {
-      taskType              : "pairwise",
-      blockName             : "block2_practice",
-      subBlockNumber        : 0,
-      trialIndex            : i,
-      pairId                : `practice_${i}`,
-      leftNodeLabel         : flip ? b : a,
-      rightNodeLabel        : flip ? a : b,
-      leftNodeCategory      : "practice",
-      rightNodeCategory     : "practice",
-      leftStimulusPresented : flip ? b : a,
-      rightStimulusPresented: flip ? a : b,
-      responseKey           : null,
-      responseLabel         : null,
-      rtMs                  : null,
-      timeout               : 0,
-      trialStartTs          : null,
-      isPractice            : true
-    };
-  });
 }
 
 /* ================================================================
@@ -981,7 +1003,7 @@ function showScreen(id) {
 }
 
 /* ================================================================
-   CORNER LABELS & PROGRESS
+   CORNER LABELS, STREAK DOTS & PROGRESS
 ================================================================ */
 
 function setKeyLabels(visible, eText = "", iText = "") {
@@ -1008,6 +1030,23 @@ function setB2Labels() {
   const eM = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT GO TOGETHER";
   const iM = S.b2Mapping.apart    === "i" ? "DO NOT GO TOGETHER" : "GO TOGETHER";
   setKeyLabels(true, eM, iM);
+}
+
+function setStreakDots(streak, total) {
+  const disp = document.getElementById("streak-display");
+  disp.classList.add("visible");
+  for (let i = 0; i < total; i++) {
+    const dot = document.getElementById("dot-" + i);
+    if (dot) dot.classList.toggle("filled", i < streak);
+  }
+}
+
+function hideStreakDots() {
+  document.getElementById("streak-display").classList.remove("visible");
+  for (let i = 0; i < 5; i++) {
+    const dot = document.getElementById("dot-" + i);
+    if (dot) dot.classList.remove("filled");
+  }
 }
 
 function setProgress(current, total, label = "") {
@@ -1054,7 +1093,6 @@ document.getElementById("fs-reenter-btn").addEventListener("click", () => {
    KEY PRACTICE WIDGET
 ================================================================ */
 
-/** Build the key-demo HTML for a mapping (keys: array of 2 meaning strings) */
 function buildKeyDemo(containerId, eLabel, iLabel) {
   document.getElementById(containerId).innerHTML = `
     <div class="key-box">
@@ -1067,11 +1105,6 @@ function buildKeyDemo(containerId, eLabel, iLabel) {
     </div>`;
 }
 
-/**
- * Run a key-practice widget: user must press both E and I once.
- * statusId: element id for feedback text.
- * Returns a promise that resolves when both keys pressed.
- */
 function keyPracticeWidget(statusId) {
   return new Promise(resolve => {
     const status = document.getElementById(statusId);
@@ -1108,10 +1141,6 @@ function keyPracticeWidget(statusId) {
 
 let _trialTimeoutId = null;
 
-/**
- * Run a single trial (works for both block 1 and block 2).
- * blockType: "b1" | "b2"
- */
 function runTrial(trial, blockType) {
   return new Promise(resolve => {
     S.trialActive = true;
@@ -1124,67 +1153,60 @@ function runTrial(trial, blockType) {
     const pairL  = document.getElementById("pair-left");
     const pairR  = document.getElementById("pair-right");
 
-    /* Reset */
     fixEl.style.display  = "none";
     singEl.style.display = "none";
     pairEl.style.display = "none";
     fbEl.textContent     = "";
+    fbEl.style.color     = "var(--warn)";
 
-    const T = CONFIG.timings;
-    const deadline = blockType === "b1" ? T.block1DeadlineMs : T.block2DeadlineMs;
+    const T        = CONFIG.timings;
+    const deadline = blockType === "b1"
+      ? CONFIG.block1.deadlineMs
+      : T.block2DeadlineMs;
+    const mapping  = blockType === "b1" ? S.b1Mapping : S.b2Mapping;
 
-    /* Phase 1: Fixation */
     fixEl.style.display = "block";
     setTimeout(() => {
       fixEl.style.display = "none";
-
-      /* Phase 2: Blank */
       setTimeout(() => {
-        /* Phase 3: Stimulus */
+
+        /* Show stimulus */
         if (blockType === "b1") {
-          singEl.textContent  = trial.stimulusPresented;
+          singEl.textContent   = trial.stimPresented;
           singEl.style.display = "block";
         } else {
-          pairL.textContent   = trial.leftStimulusPresented;
-          pairR.textContent   = trial.rightStimulusPresented;
+          pairL.textContent    = trial.leftStimulusPresented;
+          pairR.textContent    = trial.rightStimulusPresented;
           pairEl.style.display = "flex";
         }
 
         trial.trialStartTs = new Date().toISOString();
         const t0 = performance.now();
 
-        /* Deadline timeout */
         _trialTimeoutId = setTimeout(() => {
           if (!S.trialActive) return;
-          endTrial(trial, blockType, null, null, performance.now() - t0, true, resolve);
+          endTrial(trial, null, null, performance.now() - t0, true, resolve);
         }, deadline);
 
-        /* Key response */
         const handler = e => {
           if (!S.trialActive) return;
           const k = e.key.toLowerCase();
           if (k !== "e" && k !== "i") return;
           clearTimeout(_trialTimeoutId);
-          const rt     = performance.now() - t0;
-          const mapping = blockType === "b1" ? S.b1Mapping : S.b2Mapping;
-          let label;
-          if (blockType === "b1") {
-            label = (k === mapping.good) ? "good" : "bad";
-          } else {
-            label = (k === mapping.together) ? "together" : "apart";
-          }
+          const rt    = performance.now() - t0;
+          const label = Object.keys(mapping).find(m => mapping[m] === k) || null;
           document.removeEventListener("keydown", handler);
-          endTrial(trial, blockType, k, label, rt, false, resolve);
+          endTrial(trial, k, label, rt, false, resolve);
         };
         document.addEventListener("keydown", handler);
-        trial._keyHandler = handler; // store for cleanup
+        trial._keyHandler = handler;
 
       }, T.blankMs);
     }, T.fixationMs);
   });
 }
 
-function endTrial(trial, blockType, key, label, rt, timedOut, resolve) {
+function endTrial(trial, key, label, rt, timedOut, resolve) {
   S.trialActive = false;
   S.inTrial     = false;
   if (trial._keyHandler) document.removeEventListener("keydown", trial._keyHandler);
@@ -1201,106 +1223,139 @@ function endTrial(trial, blockType, key, label, rt, timedOut, resolve) {
   trial.rtMs          = timedOut ? null : Math.round(rt);
   trial.timeout       = timedOut ? 1 : 0;
 
+  let feedbackMs   = 0;
+  let feedbackText = "";
+
   if (timedOut) {
-    fbEl.textContent = "Please respond faster";
+    feedbackText = "Please respond faster";
+    feedbackMs   = CONFIG.timings.timeoutFeedbackMs;
+    fbEl.style.color = "var(--warn)";
+  } else if (trial.correctResponse && label !== trial.correctResponse) {
+    feedbackText = "Incorrect";
+    feedbackMs   = CONFIG.timings.incorrectFeedbackMs;
+    fbEl.style.color = "#c0392b";
+  }
+
+  if (feedbackText) {
+    fbEl.textContent = feedbackText;
     setTimeout(() => {
       fbEl.textContent = "";
       setTimeout(resolve, CONFIG.timings.itiMs);
-    }, CONFIG.timings.timeoutFeedbackMs);
+    }, feedbackMs);
   } else {
-    fbEl.textContent = "";
     setTimeout(resolve, CONFIG.timings.itiMs);
   }
 }
 
 /* ================================================================
-   ROW BUILDERS  (for trialData array)
+   ROW BUILDER
 ================================================================ */
 
 function buildRow(trial, blockType) {
-  const common = {
-    participant_id       : S.participantId,
-    first_name           : S.firstName,
-    experiment_version   : CONFIG.experimentVersion,
-    block_name           : trial.blockName,
-    subblock_number      : trial.subBlockNumber,
-    trial_index          : trial.trialIndex,
-    task_type            : trial.taskType,
-    mapping_condition    : blockType === "b1" ? S.b1MappingCond : S.b2MappingCond,
-    trial_start_timestamp: trial.trialStartTs,
-    rt_ms                : trial.rtMs,
-    timeout              : trial.timeout,
-    response_key         : trial.responseKey,
-    response_label       : trial.responseLabel
+  const isB1 = blockType === "b1";
+  return {
+    participant_id            : S.participantId,
+    first_name                : S.firstName,
+    experiment_version        : CONFIG.experimentVersion,
+    block_name                : trial.blockName,
+    subblock_number           : trial.subBlockNumber,
+    trial_index               : trial.trialIndex,
+    task_type                 : trial.taskType,
+    mapping_condition         : isB1 ? S.b1MappingCond : S.b2MappingCond,
+    trial_start_timestamp     : trial.trialStartTs,
+    rt_ms                     : trial.rtMs,
+    timeout                   : trial.timeout,
+    response_key              : trial.responseKey,
+    response_label            : trial.responseLabel,
+    // B1 fields
+    target_label              : isB1 ? trial.targetLabel       : null,
+    target_category           : isB1 ? trial.targetCategory    : null,
+    target_subcategory        : isB1 ? trial.targetSubcategory : null,
+    target_stimulus_presented : isB1 ? trial.stimPresented     : null,
+    // B2 fields
+    pair_id                   : !isB1 ? trial.pairId                  : null,
+    left_node_label           : !isB1 ? trial.leftNodeLabel           : null,
+    right_node_label          : !isB1 ? trial.rightNodeLabel          : null,
+    left_node_category        : !isB1 ? trial.leftNodeCategory        : null,
+    right_node_category       : !isB1 ? trial.rightNodeCategory       : null,
+    left_stimulus_presented   : !isB1 ? trial.leftStimulusPresented   : null,
+    right_stimulus_presented  : !isB1 ? trial.rightStimulusPresented  : null
   };
-
-  if (blockType === "b1") {
-    return {
-      ...common,
-      target_label     : trial.targetLabel,
-      target_category  : trial.targetCategory,
-      stimulus_presented: trial.stimulusPresented
-    };
-  } else {
-    return {
-      ...common,
-      pair_id                  : trial.pairId,
-      left_node_label          : trial.leftNodeLabel,
-      right_node_label         : trial.rightNodeLabel,
-      left_node_category       : trial.leftNodeCategory,
-      right_node_category      : trial.rightNodeCategory,
-      left_stimulus_presented  : trial.leftStimulusPresented,
-      right_stimulus_presented : trial.rightStimulusPresented
-    };
-  }
 }
 
 /* ================================================================
-   BLOCK RUNNER
+   MASTERY PRACTICE ENGINE
+   Runs batches of BATCH_SIZE trials. Streak carries across batches.
+   Participant passes when they accumulate NEEDED correct in a row.
 ================================================================ */
 
-/**
- * Run a slice of trials (one sub-block).
- * Saves rows to S.trialData for non-practice trials.
- */
+async function runMasteryPractice({ pool, trialFn, correctFn, blockType, labelsFn, retryMsg }) {
+  const NEEDED = CONFIG.practiceMasteryStreak;
+  const BATCH  = CONFIG.practiceBatchSize;
+
+  let streak   = 0;
+  let batchNum = 0;
+  let queue    = [];
+
+  function nextItem() {
+    if (!queue.length) queue = shuffle([...pool]);
+    return queue.shift();
+  }
+
+  while (streak < NEEDED) {
+    if (batchNum > 0) {
+      hideStreakDots();
+      hideProgress();
+      setKeyLabels(false);
+      document.getElementById("prac-retry-msg").textContent = retryMsg;
+      showScreen("s-prac-retry");
+      await waitSpace();
+    }
+    batchNum++;
+
+    showScreen("s-trial");
+    labelsFn();
+
+    for (let i = 0; i < BATCH && streak < NEEDED; i++) {
+      const item  = nextItem();
+      const trial = trialFn(item);
+      setStreakDots(streak, NEEDED);
+      await runTrial(trial, blockType);
+
+      const isCorrect = !trial.timeout && trial.responseLabel === correctFn(trial);
+      if (isCorrect) {
+        streak++;
+      } else {
+        streak = 0;
+      }
+      setStreakDots(streak, NEEDED);
+    }
+  }
+
+  hideStreakDots();
+  hideProgress();
+  setKeyLabels(false);
+}
+
+/* ================================================================
+   BLOCK RUNNERS
+================================================================ */
+
 async function runTrialSlice(trials, blockType, progressTotal, progressOffset, progressLabel) {
   for (let i = 0; i < trials.length; i++) {
     setProgress(progressOffset + i + 1, progressTotal, progressLabel);
     await runTrial(trials[i], blockType);
-    if (!trials[i].isPractice) {
-      S.trialData.push(buildRow(trials[i], blockType));
-    }
+    S.trialData.push(buildRow(trials[i], blockType));
   }
 }
 
-/* ================================================================
-   SPACE-BAR GATE
-================================================================ */
-
-function waitSpace() {
-  return new Promise(resolve => {
-    const h = e => {
-      if (e.code === "Space") {
-        document.removeEventListener("keydown", h);
-        resolve();
-      }
-    };
-    document.addEventListener("keydown", h);
-  });
-}
-
-/* ================================================================
-   BLOCK 1 FLOW
-================================================================ */
-
 async function runBlock1() {
-  const T = S.b1TrialList;
+  const T      = S.b1TrialList;
   const bounds = S.b1SubBlockBounds;
   const nSub   = CONFIG.block1.subBlocks;
   const total  = T.length;
 
   for (let b = 0; b < nSub; b++) {
-    /* Break between sub-blocks */
     if (b > 0) {
       hideProgress();
       setKeyLabels(false);
@@ -1311,18 +1366,13 @@ async function runBlock1() {
       showScreen("s-trial");
       setB1Labels();
     }
-
     const slice = T.slice(bounds[b], bounds[b + 1]);
     await runTrialSlice(slice, "b1", total, bounds[b], `Part 1 — Section ${b+1}/${nSub}`);
   }
 }
 
-/* ================================================================
-   BLOCK 2 FLOW
-================================================================ */
-
 async function runBlock2() {
-  const T = S.b2TrialList;
+  const T      = S.b2TrialList;
   const bounds = S.b2SubBlockBounds;
   const nSub   = CONFIG.block2.subBlocks;
   const total  = T.length;
@@ -1338,7 +1388,6 @@ async function runBlock2() {
       showScreen("s-trial");
       setB2Labels();
     }
-
     const slice = T.slice(bounds[b], bounds[b + 1]);
     await runTrialSlice(slice, "b2", total, bounds[b], `Part 2 — Section ${b+1}/${nSub}`);
   }
@@ -1349,34 +1398,35 @@ async function runBlock2() {
 ================================================================ */
 
 function computeB1Summary() {
-  const b1Rows = S.trialData.filter(r => r.block_name === "block1");
+  const rows = S.trialData.filter(r => r.block_name === "block1");
   const groups = {};
-  for (const r of b1Rows) {
-    const k = r.target_label;
-    if (!groups[k]) groups[k] = [];
-    groups[k].push(r);
+  for (const r of rows) {
+    if (!groups[r.target_label]) groups[r.target_label] = [];
+    groups[r.target_label].push(r);
   }
-  return Object.entries(groups).map(([label, rows]) => {
-    const goodRows = rows.filter(r => r.response_label === "good");
-    const badRows  = rows.filter(r => r.response_label === "bad");
-    const allRts   = rows.filter(r => !r.timeout).map(r => r.rt_ms);
+  return Object.entries(groups).map(([label, rs]) => {
+    const goodRows = rs.filter(r => r.response_label === "good");
+    const badRows  = rs.filter(r => r.response_label === "bad");
+    const allRts   = rs.filter(r => !r.timeout).map(r => r.rt_ms);
     const goodRts  = goodRows.filter(r => !r.timeout).map(r => r.rt_ms);
     const badRts   = badRows.filter(r => !r.timeout).map(r => r.rt_ms);
-    const n = rows.length;
+    const n        = rs.length;
+    const node     = S.nodeMap[label] || {};
     return {
-      participant_id   : S.participantId,
-      target_label     : label,
-      target_category  : rows[0].target_category,
-      n_trials         : n,
-      n_good           : goodRows.length,
-      n_bad            : badRows.length,
-      prop_good        : n ? round(goodRows.length / n) : null,
-      prop_bad         : n ? round(badRows.length  / n) : null,
-      median_rt_all    : median(allRts),
-      median_rt_good   : median(goodRts),
-      median_rt_bad    : median(badRts),
-      timeout_rate     : n ? round(rows.filter(r => r.timeout).length / n) : null,
-      mapping_condition: S.b1MappingCond
+      participant_id    : S.participantId,
+      target_label      : label,
+      target_category   : node.category    || rs[0]?.target_category    || "",
+      target_subcategory: node.subcategory || rs[0]?.target_subcategory || "",
+      n_trials          : n,
+      n_good            : goodRows.length,
+      n_bad             : badRows.length,
+      prop_good         : n ? round(goodRows.length / n) : null,
+      prop_bad          : n ? round(badRows.length  / n) : null,
+      median_rt_all     : median(allRts),
+      median_rt_good    : median(goodRts),
+      median_rt_bad     : median(badRts),
+      timeout_rate      : n ? round(rs.filter(r => r.timeout).length / n) : null,
+      mapping_condition : S.b1MappingCond
     };
   });
 }
@@ -1395,30 +1445,27 @@ function computeB2Summary() {
     const allRts  = rows.filter(r => !r.timeout).map(r => r.rt_ms);
     const toRts   = toRows.filter(r => !r.timeout).map(r => r.rt_ms);
     const apRts   = apRows.filter(r => !r.timeout).map(r => r.rt_ms);
-    const n = rows.length;
-
-    // Canonical node1/node2 from pair id
+    const n       = rows.length;
     const [n1, n2] = pairId.split(" | ");
     const node1 = S.nodeMap[n1] || {};
     const node2 = S.nodeMap[n2] || {};
-
     return {
-      participant_id    : S.participantId,
-      pair_id           : pairId,
-      node1_label       : n1,
-      node2_label       : n2,
-      node1_category    : node1.category || "",
-      node2_category    : node2.category || "",
-      n_trials          : n,
-      n_together        : toRows.length,
-      n_apart           : apRows.length,
-      prop_together     : n ? round(toRows.length / n) : null,
-      prop_apart        : n ? round(apRows.length  / n) : null,
-      median_rt_all     : median(allRts),
-      median_rt_together: median(toRts),
-      median_rt_apart   : median(apRts),
-      timeout_rate      : n ? round(rows.filter(r => r.timeout).length / n) : null,
-      mapping_condition : S.b2MappingCond
+      participant_id     : S.participantId,
+      pair_id            : pairId,
+      node1_label        : n1,
+      node2_label        : n2,
+      node1_category     : node1.category || "",
+      node2_category     : node2.category || "",
+      n_trials           : n,
+      n_together         : toRows.length,
+      n_apart            : apRows.length,
+      prop_together      : n ? round(toRows.length / n) : null,
+      prop_apart         : n ? round(apRows.length  / n) : null,
+      median_rt_all      : median(allRts),
+      median_rt_together : median(toRts),
+      median_rt_apart    : median(apRts),
+      timeout_rate       : n ? round(rows.filter(r => r.timeout).length / n) : null,
+      mapping_condition  : S.b2MappingCond
     };
   });
 }
@@ -1435,9 +1482,9 @@ function showDebrief() {
   const n2 = S.trialData.filter(r => r.block_name === "block2").length;
   const to = S.trialData.filter(r => r.timeout).length;
   document.getElementById("debrief-stats").textContent =
-    `Part 1 trials: ${n1}  |  Part 2 trials: ${n2}  |  Timeouts: ${to}  |  ID: ${S.participantId}`;
+    `Part 1: ${n1} trials  |  Part 2: ${n2} trials  |  Timeouts: ${to}  |  ID: ${S.participantId}`;
 
-  const pid = S.participantId;
+  const pid   = S.participantId;
   const b1sum = computeB1Summary();
   const b2sum = computeB2Summary();
 
@@ -1446,122 +1493,164 @@ function showDebrief() {
   document.getElementById("dl-trial-json").onclick = () =>
     downloadFile(JSON.stringify(S.trialData, null, 2), `${pid}_trials.json`, "application/json");
   document.getElementById("dl-b1-summary").onclick = () =>
-    downloadFile(toCSV(b1sum), `${pid}_block1_target_summary.csv`, "text/csv");
+    downloadFile(toCSV(b1sum), `${pid}_evaluation_summary.csv`, "text/csv");
   document.getElementById("dl-b2-summary").onclick = () =>
-    downloadFile(toCSV(b2sum), `${pid}_block2_pair_summary.csv`, "text/csv");
+    downloadFile(toCSV(b2sum), `${pid}_association_summary.csv`, "text/csv");
 
   showScreen("s-debrief");
 }
 
 /* ================================================================
-   MAIN EXPERIMENT FLOW  (fully async, single entry point)
+   HELPERS
+================================================================ */
+
+function waitSpace() {
+  return new Promise(resolve => {
+    const h = e => {
+      if (e.code === "Space") { document.removeEventListener("keydown", h); resolve(); }
+    };
+    document.addEventListener("keydown", h);
+  });
+}
+
+function buttonClick(id) {
+  return new Promise(resolve => {
+    document.getElementById(id).addEventListener("click", resolve, { once: true });
+  });
+}
+
+/* ================================================================
+   MAIN EXPERIMENT FLOW
 ================================================================ */
 
 async function runExperiment() {
 
-  /* ══════════════════ BLOCK 1 ══════════════════ */
-  if (CONFIG.block1.enabled) {
+  /* ══════════════════════ BLOCK 1 ══════════════════════ */
 
-    /* -- B1 Instructions -- */
-    document.getElementById("b1-deadline-display").textContent =
-      (CONFIG.timings.block1DeadlineMs / 1000).toFixed(1);
-    showScreen("s-b1-instr");
-    await buttonClick("btn-b1-instr");
+  document.getElementById("b1-deadline-display").textContent =
+    (CONFIG.block1.deadlineMs / 1000).toFixed(1);
+  showScreen("s-b1-instr");
+  await buttonClick("btn-b1-instr");
 
-    /* -- B1 Key practice -- */
-    const b1eLabel = S.b1Mapping.good === "e" ? "GOOD" : "BAD";
-    const b1iLabel = S.b1Mapping.bad  === "i" ? "BAD"  : "GOOD";
-    buildKeyDemo("b1-key-demo", b1eLabel, b1iLabel);
-    showScreen("s-b1-keys");
-    await keyPracticeWidget("key-practice-status");
+  /* B1 key practice */
+  const b1eLabel = S.b1Mapping.good === "e" ? "GOOD" : "BAD";
+  const b1iLabel = S.b1Mapping.bad  === "i" ? "BAD"  : "GOOD";
+  buildKeyDemo("b1-key-demo", b1eLabel, b1iLabel);
+  showScreen("s-b1-keys");
+  await keyPracticeWidget("b1-key-practice-status");
 
-    /* -- B1 Practice trials -- */
-    showScreen("s-b1-prac-start");
-    await waitSpace();
-    showScreen("s-trial");
-    setB1Labels();
-    await runTrialSlice(S.b1PracticeTrials, "b1",
-      S.b1PracticeTrials.length, 0, "Part 1 — Practice");
+  /* B1 mastery practice */
+  showScreen("s-b1-prac-start");
+  await waitSpace();
 
-    /* -- B1 Practice → Main transition -- */
-    hideProgress();
-    setKeyLabels(false);
-    showScreen("s-b1-prac-end");
-    await waitSpace();
-    showScreen("s-trial");
-    setB1Labels();
+  await runMasteryPractice({
+    pool      : CONFIG.b1PracticePool,
+    trialFn   : item => ({
+      taskType        : "single_target",
+      blockName       : "block1_practice",
+      subBlockNumber  : 0,
+      trialIndex      : 0,
+      targetLabel     : item.label,
+      targetCategory  : "practice",
+      targetSubcategory: "",
+      stimPresented   : item.label,
+      responseKey     : null,
+      responseLabel   : null,
+      rtMs            : null,
+      timeout         : 0,
+      trialStartTs    : null,
+      correctResponse : item.correct
+    }),
+    correctFn : trial => trial.correctResponse,
+    blockType : "b1",
+    labelsFn  : () => setB1Labels(),
+    retryMsg  : `You need ${CONFIG.practiceMasteryStreak} correct in a row to continue. ` +
+                `Let's try ${CONFIG.practiceBatchSize} more practice trials.`
+  });
 
-    /* -- B1 Main trials -- */
-    await runBlock1();
-    hideProgress();
-    setKeyLabels(false);
-  }
+  showScreen("s-b1-prac-end");
+  await waitSpace();
+  showScreen("s-trial");
+  setB1Labels();
 
-  /* ══════════════════ MID BREAK ══════════════════ */
-  if (CONFIG.block1.enabled && CONFIG.block2.enabled) {
-    showScreen("s-mid-break");
-    await waitSpace();
-  }
+  /* B1 main trials */
+  await runBlock1();
+  hideProgress();
+  setKeyLabels(false);
 
-  /* ══════════════════ BLOCK 2 ══════════════════ */
-  if (CONFIG.block2.enabled) {
+  /* ══════════════════ BLOCK TRANSITION ══════════════════ */
+  showScreen("s-block-transition");
+  await waitSpace();
 
-    /* -- B2 Instructions -- */
-    document.getElementById("b2-deadline-display").textContent =
-      (CONFIG.timings.block2DeadlineMs / 1000).toFixed(1);
-    showScreen("s-b2-instr");
-    await buttonClick("btn-b2-instr");
+  /* ══════════════════════ BLOCK 2 ══════════════════════ */
 
-    /* -- B2 Key practice -- */
-    const b2eLabel = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT GO TOGETHER";
-    const b2iLabel = S.b2Mapping.apart    === "i" ? "DO NOT GO TOGETHER" : "GO TOGETHER";
-    buildKeyDemo("b2-key-demo", b2eLabel, b2iLabel);
-    showScreen("s-b2-keys");
-    await keyPracticeWidget("b2-key-practice-status");
+  document.getElementById("b2-deadline-display").textContent =
+    (CONFIG.timings.block2DeadlineMs / 1000).toFixed(1);
+  showScreen("s-b2-instr");
+  await buttonClick("btn-b2-instr");
 
-    /* -- B2 Practice trials -- */
-    showScreen("s-b2-prac-start");
-    await waitSpace();
-    showScreen("s-trial");
-    setB2Labels();
-    await runTrialSlice(S.b2PracticeTrials, "b2",
-      S.b2PracticeTrials.length, 0, "Part 2 — Practice");
+  /* B2 key practice */
+  const b2eLabel = S.b2Mapping.together === "e" ? "GO TOGETHER" : "DO NOT GO TOGETHER";
+  const b2iLabel = S.b2Mapping.apart    === "i" ? "DO NOT GO TOGETHER" : "GO TOGETHER";
+  buildKeyDemo("b2-key-demo", b2eLabel, b2iLabel);
+  showScreen("s-b2-keys");
+  await keyPracticeWidget("b2-key-practice-status");
 
-    /* -- B2 Practice → Main transition -- */
-    hideProgress();
-    setKeyLabels(false);
-    showScreen("s-b2-prac-end");
-    await waitSpace();
-    showScreen("s-trial");
-    setB2Labels();
+  /* B2 mastery practice */
+  showScreen("s-b2-prac-start");
+  await waitSpace();
 
-    /* -- B2 Main trials -- */
-    await runBlock2();
-    hideProgress();
-    setKeyLabels(false);
-  }
+  await runMasteryPractice({
+    pool      : CONFIG.b2PracticePool,
+    trialFn   : item => {
+      const [a, b] = item.pair;
+      const flip   = Math.random() < 0.5;
+      return {
+        taskType              : "pairwise",
+        blockName             : "block2_practice",
+        subBlockNumber        : 0,
+        trialIndex            : 0,
+        pairId                : "practice",
+        leftNodeLabel         : flip ? b : a,
+        rightNodeLabel        : flip ? a : b,
+        leftNodeCategory      : "practice",
+        rightNodeCategory     : "practice",
+        leftStimulusPresented : flip ? b : a,
+        rightStimulusPresented: flip ? a : b,
+        responseKey           : null,
+        responseLabel         : null,
+        rtMs                  : null,
+        timeout               : 0,
+        trialStartTs          : null,
+        correctResponse       : item.correct
+      };
+    },
+    correctFn : trial => trial.correctResponse,
+    blockType : "b2",
+    labelsFn  : () => setB2Labels(),
+    retryMsg  : `You need ${CONFIG.practiceMasteryStreak} correct in a row to continue. ` +
+                `Let's try ${CONFIG.practiceBatchSize} more practice trials.`
+  });
+
+  showScreen("s-b2-prac-end");
+  await waitSpace();
+  showScreen("s-trial");
+  setB2Labels();
+
+  /* B2 main trials */
+  await runBlock2();
+  hideProgress();
+  setKeyLabels(false);
 
   showDebrief();
 }
 
 /* ================================================================
-   HELPER: promise that resolves on a button click (one-shot)
-================================================================ */
-function buttonClick(id) {
-  return new Promise(resolve => {
-    const btn = document.getElementById(id);
-    btn.addEventListener("click", resolve, { once: true });
-  });
-}
-
-/* ================================================================
-   UI WIRING — entry-point buttons only
+   UI WIRING
 ================================================================ */
 
-/* Welcome */
 document.getElementById("btn-welcome").addEventListener("click", () => {
   if (CONFIG.fullscreen) requestFS();
-
   if (CONFIG.participantIdPrompt || CONFIG.askFirstName) {
     document.getElementById("pid-field").style.display =
       CONFIG.participantIdPrompt ? "flex" : "none";
@@ -1574,7 +1663,6 @@ document.getElementById("btn-welcome").addEventListener("click", () => {
   }
 });
 
-/* Info form */
 document.getElementById("btn-info").addEventListener("click", () => {
   S.participantId = document.getElementById("pid-input").value.trim() || genId();
   S.firstName     = document.getElementById("fname-input").value.trim();
@@ -1582,7 +1670,6 @@ document.getElementById("btn-info").addEventListener("click", () => {
   showScreen("s-general-instr");
 });
 
-/* General instructions → kick off async experiment flow */
 document.getElementById("btn-general-instr").addEventListener("click", () => {
   runExperiment();
 });

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Structural Identities — Project Home</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Georgia', serif;
+  background: #0d0d0d;
+  color: #c0c0c0;
+  min-height: 100vh;
+  padding: 48px 24px 80px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+h1 { color: #e8e8e8; font-size: 1.9rem; margin-bottom: 6px; font-weight: normal; }
+.subtitle { color: #666; font-size: 1rem; margin-bottom: 48px; font-style: italic; }
+
+/* ── Navigation cards ── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 56px;
+}
+.card {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: 24px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
+  display: block;
+}
+.card:hover { border-color: #444; background: #161616; }
+.card-icon { font-size: 1.6rem; margin-bottom: 10px; }
+.card-title { color: #e8e8e8; font-size: 1.05rem; margin-bottom: 6px; font-family: 'Menlo','Consolas',monospace; }
+.card-desc { color: #666; font-size: 0.82rem; line-height: 1.6; }
+.card.task    { border-top: 3px solid #5b8dd9; }
+.card.sim     { border-top: 3px solid #2a6; }
+.card.results { border-top: 3px solid #c97de8; }
+
+/* ── Section headings ── */
+h2 {
+  color: #e8a030;
+  font-size: 1.05rem;
+  font-weight: bold;
+  font-family: 'Menlo','Consolas',monospace;
+  margin: 40px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1e1e1e;
+}
+h3 { color: #aaa; font-size: 0.95rem; margin: 24px 0 8px; font-weight: bold; }
+p  { line-height: 1.75; font-size: 0.9rem; color: #a0a0a0; margin-bottom: 12px; }
+ul { margin: 0 0 14px 1.4em; }
+li { line-height: 1.7; font-size: 0.9rem; color: #a0a0a0; }
+code {
+  font-family: 'Menlo','Consolas',monospace;
+  font-size: 0.82rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #5a9;
+}
+.formula-box {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 5px;
+  padding: 14px 18px;
+  margin: 12px 0 18px;
+  font-family: 'Menlo','Consolas',monospace;
+  font-size: 0.82rem;
+  color: #c0c0c0;
+  line-height: 2;
+}
+.formula-box .comment { color: #555; }
+.legend {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  margin: 10px 0 18px;
+  font-size: 0.83rem;
+}
+.legend-item { display: flex; align-items: center; gap: 7px; color: #888; }
+.dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.sq  { width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+
+hr { border: none; border-top: 1px solid #1a1a1a; margin: 40px 0; }
+</style>
+</head>
+<body>
+
+<h1>Structural Identities</h1>
+<p class="subtitle">A study of political belief networks using implicit association</p>
+
+<!-- ── Navigation ── -->
+<div class="cards">
+  <a href="hybrid_task.html" class="card task">
+    <div class="card-icon">🧪</div>
+    <div class="card-title">Run the Task</div>
+    <div class="card-desc">Launch the full experiment — valence evaluation (Block 1) followed by pairwise association (Block 2). Download your data at the end.</div>
+  </a>
+  <a href="simulate.html" class="card sim">
+    <div class="card-icon">⚡</div>
+    <div class="card-title">Simulate Data</div>
+    <div class="card-desc">Generate synthetic responses from 30 realistic American political profiles. Explore the belief network without running real participants.</div>
+  </a>
+  <a href="#results" class="card results" onclick="document.getElementById('results-section').scrollIntoView({behavior:'smooth'});return false;">
+    <div class="card-icon">📊</div>
+    <div class="card-title">Analysis (R)</div>
+    <div class="card-desc">Open <code>belief_network.R</code> in RStudio to generate publication-quality network plots from real or simulated data.</div>
+  </a>
+</div>
+
+<!-- ── How the task works ── -->
+<h2>How the Task Works</h2>
+
+<h3>Block 1 — Valence Evaluation</h3>
+<p>
+  Participants see a concept (e.g., <em>Democrats</em>, <em>freedom</em>, <em>universal health care</em>)
+  and press a key to classify it as <strong>good</strong> or <strong>bad</strong>.
+  They have 3 seconds to respond. The key assignment is counterbalanced across participants
+  (half press E for "good", half press I for "good").
+</p>
+<p>
+  Each of the participant's 10 nodes appears twice across two sub-blocks. Nodes are drawn from
+  three categories: <strong>identity</strong> (Democrats, Republicans, women, men, etc.),
+  <strong>policy</strong> (abortion access, cutting taxes, etc.), and <strong>values</strong>
+  (freedom, equality, tradition, etc.).
+</p>
+<p>
+  Before the main task, participants must pass a mastery practice: 5 correct responses in a row
+  using unambiguous stimuli (<em>world peace = good</em>, <em>cancer = bad</em>, etc.).
+  If they fail a batch of 5 trials without reaching 5 in a row, they receive feedback and try again.
+  The streak carries across batches.
+</p>
+
+<h3>Block 2 — Pairwise Association</h3>
+<p>
+  Participants see two concepts side-by-side and press a key indicating whether they
+  <strong>go together</strong> or <strong>do not go together</strong> in their mind.
+  They have 4 seconds to respond. As in Block 1, the key assignment is counterbalanced.
+</p>
+<p>
+  Every possible pair among the participant's 10 nodes is tested once; pairs involving
+  <em>me</em> are tested twice (stronger signal for self-concept connections).
+  Trials are split across two sub-blocks to reduce fatigue.
+</p>
+<p>
+  Mastery practice uses unambiguous pairs: <em>ice cream + summer = together</em>,
+  <em>fire + ice = apart</em>, etc. Same 5-in-a-row rule applies.
+</p>
+
+<h3>Node Selection</h3>
+<p>
+  Each participant sees 10 nodes: <em>me</em> (always included) plus 9 randomly sampled from
+  the full pool of 24. The pool spans:
+</p>
+<ul>
+  <li><strong>Identity (10):</strong> Democrats, Republicans, White/Black people, women, men, working/middle/poor class people</li>
+  <li><strong>Policy — morality (3):</strong> abortion access, same-sex marriage, capital punishment</li>
+  <li><strong>Policy — economy (3):</strong> cutting taxes, raising the minimum wage, universal health care</li>
+  <li><strong>Policy — non-partisan (3):</strong> paying college athletes, disaster relief funding, regulating AI companies</li>
+  <li><strong>Values (5):</strong> freedom, equality, tradition, security, compassion</li>
+</ul>
+
+<hr>
+
+<!-- ── How it calculates things ── -->
+<h2>How the Measures Are Calculated</h2>
+
+<h3>Valence Score (from Block 1)</h3>
+<p>
+  For each node, we compute how often a participant responded "good" (<code>prop_good</code>),
+  then weight that by how quickly they responded relative to their own average response time.
+  Fast responses signal more automatic, confident evaluations.
+</p>
+<div class="formula-box">
+  <span class="comment"># Within-person RT normalization</span><br>
+  rt_ratio      = node_median_rt / person_median_rt_b1<br>
+  rt_factor_b1  = max(0.4,  1 − 0.3 × rt_ratio)<br>
+  <br>
+  <span class="comment"># Valence score (0 = strongly bad, 0.5 = neutral, 1 = strongly good)</span><br>
+  valence_centered = (prop_good − 0.5) × rt_factor_b1<br>
+  valence_score    = 0.5 + valence_centered
+</div>
+<p>
+  A <code>rt_ratio</code> of 1.0 means the person responded at their average speed → <code>rt_factor = 0.70</code>.
+  Twice as fast (ratio = 0.5) → <code>rt_factor = 0.85</code>. Twice as slow (ratio ≥ 2.0) → floor of <code>0.40</code>.
+  This is averaged across participants and sub-blocks to get the population-level valence for each node.
+</p>
+
+<h3>Association Strength (from Block 2)</h3>
+<p>
+  For each pair of nodes, <code>assoc_strength = |prop_together − 0.5|</code>.
+  A pair strongly classified as "together" (<code>prop_together = 0.9</code>) and a pair
+  strongly classified as "apart" (<code>prop_together = 0.1</code>) both get strength = 0.4.
+  Direction (together vs. apart) is tracked separately as <code>centered_assoc = prop_together − 0.5</code>.
+</p>
+
+<h3>RT-Weighted Edge Strength</h3>
+<p>
+  Faster responses indicate more automatic, implicit associations. We weight each edge by
+  within-person RT to give faster responses more influence in the final network.
+</p>
+<div class="formula-box">
+  <span class="comment"># For each participant × pair</span><br>
+  rt_ratio = pair_median_rt / person_median_rt_b2<br>
+  <br>
+  <span class="comment"># Averaged across participants, then:</span><br>
+  rt_factor          = max(0.4,  1 − 0.3 × mean_ratio)<br>
+  rt_weighted_strength = assoc_strength × rt_factor
+</div>
+<p>
+  Both "go together" and "do not go together" responses contribute — what matters is
+  that the person was fast and consistent, not which direction they leaned.
+</p>
+
+<h3>Centrality</h3>
+<p>
+  Two centrality measures are computed for each node using <code>rt_weighted_strength</code> as edge weights:
+</p>
+<ul>
+  <li><strong>Weighted strength:</strong> sum of all incident edge weights — how strongly a node is connected overall.</li>
+  <li><strong>Eigenvector centrality:</strong> how connected a node is to other highly-connected nodes — the "hub of hubs" measure.</li>
+</ul>
+<p>Both are normalized to [0, 1] within each sample.</p>
+
+<h3>Network Layout</h3>
+<p>
+  The Fruchterman-Reingold force-directed algorithm places nodes. Edges exert attractive
+  force proportional to <code>rt_weighted_strength</code>, so strongly and quickly associated
+  concepts cluster together. <em>Me</em> receives extra gravitational pull toward the center.
+  In the interactive view you can drag nodes, zoom, and pan to explore the structure.
+</p>
+
+<h3>Node Appearance in the Network</h3>
+<div class="legend">
+  <div class="legend-item"><div class="dot" style="background:#8b0000"></div> Bad valence (dark red)</div>
+  <div class="legend-item"><div class="dot" style="background:#3a4455"></div> Neutral (slate)</div>
+  <div class="legend-item"><div class="dot" style="background:#003580"></div> Good valence (dark blue)</div>
+</div>
+<div class="legend">
+  <div class="legend-item"><div class="dot" style="border:3px solid #5b8dd9;background:transparent"></div> Identity (circle)</div>
+  <div class="legend-item"><div class="sq"  style="border:3px solid #6ac46a;background:transparent"></div> Policy (square)</div>
+  <div class="legend-item"><div class="dot" style="border:3px solid #c97de8;background:transparent;border-radius:0;transform:rotate(45deg);width:12px;height:12px"></div> Values (diamond)</div>
+</div>
+<p>
+  <strong>Fill color</strong> = RT-weighted valence from Block 1 (dark red → slate → dark blue).<br>
+  <strong>Stroke color</strong> = node category (blue = identity, green = policy, purple = values).<br>
+  <strong>Shape</strong> = category (circle = identity, square = policy, diamond = values).<br>
+  <strong>Size</strong> = weighted centrality strength.
+</p>
+
+<hr>
+
+<!-- ── Results section ── -->
+<h2 id="results-section">Running the Analysis in R</h2>
+<div id="results"></div>
+<p>
+  After running the experiment (or the simulator), download the CSV files and place them
+  in a <code>simulated_data/</code> folder next to <code>belief_network.R</code>. Then open
+  the R script in RStudio and source it. Required files:
+</p>
+<ul>
+  <li><code>block1_evaluation_summary.csv</code> — per-participant × per-node valence data</li>
+  <li><code>block2_pair_summary.csv</code> — per-participant × per-pair association data</li>
+</ul>
+<p>The script produces five PDF plots in a <code>plots/</code> subfolder:</p>
+<ul>
+  <li><code>01_full_network.pdf</code> — full belief network, all participants</li>
+  <li><code>02_rt_scatter.pdf</code> — RT vs. association strength scatter</li>
+  <li><code>03_association_heatmap.pdf</code> — pairwise association matrix</li>
+  <li><code>04_group_networks.pdf</code> — Liberal / Centrist / Conservative subnetworks</li>
+  <li><code>05_me_connections.pdf</code> — self-concept (me) connections</li>
+</ul>
+<p>It also saves <code>plots/node_centrality.csv</code> with strength and eigenvector scores for every node.</p>
+
+</body>
+</html>

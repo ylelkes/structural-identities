@@ -96,12 +96,47 @@
     color: #666; font-size: 0.78rem; margin-bottom: 12px;
   }
   .viz-section svg { display: block; max-width: 100%; }
+  .open-btn {
+    background: #1a3a2a; color: #5a9; border: 1px solid #2a6;
+    padding: 4px 12px; font-size: 0.78rem; border-radius: 3px;
+    cursor: pointer; font-family: inherit;
+  }
+  .open-btn:hover { background: #243a2e; }
+
+  /* ── Camp tabs ── */
+  .camp-tabs {
+    display: flex; gap: 6px; margin: 10px 0 16px;
+  }
+  .camp-tab {
+    background: #111; color: #666; border: 1px solid #333;
+    padding: 5px 14px; font-size: 0.78rem; border-radius: 3px;
+    cursor: pointer; font-family: inherit; transition: background 0.12s, color 0.12s;
+  }
+  .camp-tab:hover { background: #1a1a1a; color: #aaa; }
+  .camp-tab.active { background: #1a3a2a; color: #5a9; border-color: #2a6; }
+  .camp-tab[data-camp="Liberal"].active  { background: #1a2a3a; color: #5b8dd9; border-color: #5b8dd9; }
+  .camp-tab[data-camp="Centrist"].active { background: #2a2010; color: #e8a030; border-color: #e8a030; }
+  .camp-tab[data-camp="Conservative"].active { background: #2a1a18; color: #d45f3c; border-color: #d45f3c; }
 </style>
 </head>
 <body>
 
 <h1>Simulation Runner — hybrid_task.html</h1>
 <h2>20 possible nodes · 10 per participant (me always included) · diverse American profiles</h2>
+
+<div style="background:#111;border:1px solid #222;border-radius:5px;padding:16px 20px;max-width:700px;margin-bottom:28px;font-size:0.84rem;line-height:1.75;color:#888;">
+  <strong style="color:#e8a030;">About the simulated participants</strong><br>
+  This simulator uses 30 hand-crafted profiles representing a cross-section of American political types —
+  strong progressives, union Democrats, libertarians, moderate Republicans, MAGA voters, and more.
+  Each profile has a mean reaction time, a variability parameter, and a set of underlying valence scores
+  (how positively or negatively they evaluate each concept) derived from type-level political psychology research.
+  Individual responses are sampled probabilistically: valence determines whether a node is rated "good" or "bad"
+  and whether a pair is rated "together" or "apart"; within-person RT noise is drawn from a log-normal distribution.
+  When you request more participants than 30, profiles are cycled and re-indexed.<br><br>
+  <strong style="color:#e8a030;">After running:</strong> Download the CSV files, then scroll down to explore
+  the interactive belief network, self-concept connections, and centrality scores.
+  <a href="index.html" style="color:#5a9;text-decoration:none;margin-left:8px;">← Back to home</a>
+</div>
 
 <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
   <button id="run-btn" style="margin-bottom:0;">▶ Run Simulation</button>
@@ -119,9 +154,9 @@
 <div id="downloads">
   <h3>Download outputs:</h3>
   <button id="dl-all" style="background:#555;font-weight:bold;">⬇ Download All (4 files)</button>
-  <button id="dl-trials-csv">all_trials.csv  (all trial rows, both blocks)</button>
+  <button id="dl-trials-csv">all_trials.csv  (all trial rows)</button>
   <button id="dl-trials-json">all_trials.json</button>
-  <button id="dl-b1">block1_target_summary.csv</button>
+  <button id="dl-b1">block1_evaluation_summary.csv</button>
   <button id="dl-b2">block2_pair_summary.csv</button>
 </div>
 
@@ -130,25 +165,21 @@
 <!-- ── Visualization nav + sections (shown after simulation) ── -->
 <nav id="viz-nav">
   <a href="#section-network">Network</a>
-  <a href="#section-valence">Valence</a>
   <a href="#section-me">Me Connections</a>
-  <a href="#section-groups">By Group</a>
   <a href="#section-centrality">Centrality</a>
 </nav>
 
 <div class="viz-section" id="section-network">
   <h3 class="viz-toggle">Belief Network</h3>
   <div class="viz-content">
-    <p class="viz-sub">Node colour = valence (red = negative, blue = positive) · Shape = category · Node size = centrality · Edge colour = association direction · Edge width = strength</p>
-    <div id="viz-network"></div>
-  </div>
-</div>
-
-<div class="viz-section" id="section-valence">
-  <h3 class="viz-toggle">Node Valence</h3>
-  <div class="viz-content">
-    <p class="viz-sub">Mean proportion rated GOOD across all participants who saw each node</p>
-    <div id="viz-valence"></div>
+    <p class="viz-sub">Node fill = RT-weighted valence (red=bad · gray=neutral · blue=good) · Stroke = category · Shape = category · Size = centrality · Edge width = RT-weighted strength</p>
+    <div class="camp-tabs" id="network-tabs">
+      <button class="camp-tab active" data-camp="All">All</button>
+      <button class="camp-tab" data-camp="Liberal">Liberal</button>
+      <button class="camp-tab" data-camp="Centrist">Centrist</button>
+      <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
+    <button id="open-network-btn" class="open-btn">↗ Open Interactive</button>
   </div>
 </div>
 
@@ -156,15 +187,13 @@
   <h3 class="viz-toggle">Me Connections</h3>
   <div class="viz-content">
     <p class="viz-sub">Centred association of each concept with "me" (prop_together − 0.5)</p>
+    <div class="camp-tabs" id="me-tabs">
+      <button class="camp-tab active" data-camp="All">All</button>
+      <button class="camp-tab" data-camp="Liberal">Liberal</button>
+      <button class="camp-tab" data-camp="Centrist">Centrist</button>
+      <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
     <div id="viz-me"></div>
-  </div>
-</div>
-
-<div class="viz-section" id="section-groups">
-  <h3 class="viz-toggle">Belief Networks by Political Group</h3>
-  <div class="viz-content">
-    <p class="viz-sub">Same layout algorithm applied separately to each political camp's data</p>
-    <div id="viz-groups"></div>
   </div>
 </div>
 
@@ -172,6 +201,12 @@
   <h3 class="viz-toggle">Centrality Scores</h3>
   <div class="viz-content">
     <p class="viz-sub">Weighted strength = sum of incident edge strengths · Eigenvector = connected-to-hubs score (both normalised 0–1)</p>
+    <div class="camp-tabs" id="centrality-tabs">
+      <button class="camp-tab active" data-camp="All">All</button>
+      <button class="camp-tab" data-camp="Liberal">Liberal</button>
+      <button class="camp-tab" data-camp="Centrist">Centrist</button>
+      <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
     <div id="viz-centrality"></div>
   </div>
 </div>
@@ -187,12 +222,15 @@ const CONFIG = {
   nodesPerParticipant: 10,
   timings: {
     fixationMs: 500, blankMs: 100,
-    block1DeadlineMs: 1500, block2DeadlineMs: 2000,
+    block2DeadlineMs: 4000,
     itiMs: 250, timeoutFeedbackMs: 500
   },
   block1: {
-    enabled: true, repetitionsPerTarget: 4, subBlocks: 2,
-    keyMappingMode: "counterbalance", fixedMapping: { good: "e", bad: "i" }
+    enabled: true,
+    repetitionsPerNode: 2,
+    subBlocks: 2,
+    deadlineMs: 3000,
+    keyMappingMode: "counterbalance"
   },
   block2: {
     enabled: true,
@@ -225,23 +263,31 @@ const CONFIG = {
     { category:"identity", label:"poor people",
       stimuli:["poor people","low-income Americans","people in poverty"] },
 
-    /* Policy (5) */
-    { category:"policy", label:"stricter gun laws",
-      stimuli:["stricter gun laws","gun control","assault weapon bans",
-               "universal background checks"] },
-    { category:"policy", label:"abortion access",
+    /* Policy — Morality (3) */
+    { category:"policy", subcategory:"morality", label:"abortion access",
       stimuli:["abortion access","abortion rights","reproductive rights",
                "the right to an abortion"] },
-    { category:"policy", label:"universal health care",
+    { category:"policy", subcategory:"morality", label:"same-sex marriage",
+      stimuli:["same-sex marriage","marriage equality","gay marriage"] },
+    { category:"policy", subcategory:"morality", label:"capital punishment",
+      stimuli:["capital punishment","the death penalty","executing criminals"] },
+
+    /* Policy — Economy (3) */
+    { category:"policy", subcategory:"economy", label:"cutting taxes",
+      stimuli:["cutting taxes","tax cuts","lower taxes","reducing the tax burden"] },
+    { category:"policy", subcategory:"economy", label:"raising the minimum wage",
+      stimuli:["raising the minimum wage","a higher minimum wage","a $15 minimum wage"] },
+    { category:"policy", subcategory:"economy", label:"universal health care",
       stimuli:["universal health care","Medicare for All",
                "government-provided health insurance","single-payer health care"] },
-    { category:"policy", label:"cutting taxes",
-      stimuli:["cutting taxes","tax cuts","lower taxes",
-               "reducing the tax burden"] },
-    { category:"policy", label:"restricting immigration",
-      stimuli:["restricting immigration","immigration restrictions",
-               "building the border wall","deporting immigrants",
-               "stricter border security"] },
+
+    /* Policy — Non-partisan / low-salience (3) */
+    { category:"policy", subcategory:"nonpartisan", label:"paying college athletes",
+      stimuli:["paying college athletes","college athlete pay","compensating college athletes"] },
+    { category:"policy", subcategory:"nonpartisan", label:"disaster relief funding",
+      stimuli:["disaster relief funding","federal disaster aid","FEMA funding"] },
+    { category:"policy", subcategory:"nonpartisan", label:"regulating AI companies",
+      stimuli:["regulating AI companies","AI regulation","oversight of AI companies"] },
 
     /* Values (5) */
     { category:"values", label:"freedom",
@@ -268,8 +314,9 @@ const TYPE_VALENCES = {
     "Democrats":0.88, "Republicans":0.08,
     "White people":0.60, "Black people":0.90, "women":0.92, "men":0.55,
     "working class people":0.85, "middle class people":0.75, "poor people":0.88,
-    "stricter gun laws":0.88, "abortion access":0.92, "universal health care":0.92,
-    "cutting taxes":0.12, "restricting immigration":0.08,
+    /* morality */ "abortion access":0.95, "same-sex marriage":0.96, "capital punishment":0.06,
+    /* economy  */ "cutting taxes":0.12, "raising the minimum wage":0.92, "universal health care":0.94,
+    /* nonpart  */ "paying college athletes":0.68, "disaster relief funding":0.92, "regulating AI companies":0.74,
     "freedom":0.78, "equality":0.95, "tradition":0.22, "security":0.52, "compassion":0.95
   },
   liberal: {
@@ -277,8 +324,9 @@ const TYPE_VALENCES = {
     "Democrats":0.78, "Republicans":0.22,
     "White people":0.65, "Black people":0.82, "women":0.85, "men":0.62,
     "working class people":0.80, "middle class people":0.78, "poor people":0.82,
-    "stricter gun laws":0.78, "abortion access":0.82, "universal health care":0.85,
-    "cutting taxes":0.25, "restricting immigration":0.22,
+    /* morality */ "abortion access":0.88, "same-sex marriage":0.90, "capital punishment":0.12,
+    /* economy  */ "cutting taxes":0.25, "raising the minimum wage":0.85, "universal health care":0.88,
+    /* nonpart  */ "paying college athletes":0.64, "disaster relief funding":0.88, "regulating AI companies":0.70,
     "freedom":0.80, "equality":0.90, "tradition":0.35, "security":0.60, "compassion":0.90
   },
   centrist: {
@@ -286,8 +334,9 @@ const TYPE_VALENCES = {
     "Democrats":0.52, "Republicans":0.50,
     "White people":0.70, "Black people":0.72, "women":0.78, "men":0.72,
     "working class people":0.75, "middle class people":0.80, "poor people":0.70,
-    "stricter gun laws":0.58, "abortion access":0.60, "universal health care":0.65,
-    "cutting taxes":0.52, "restricting immigration":0.50,
+    /* morality */ "abortion access":0.62, "same-sex marriage":0.68, "capital punishment":0.48,
+    /* economy  */ "cutting taxes":0.52, "raising the minimum wage":0.65, "universal health care":0.65,
+    /* nonpart  */ "paying college athletes":0.58, "disaster relief funding":0.82, "regulating AI companies":0.62,
     "freedom":0.82, "equality":0.72, "tradition":0.60, "security":0.72, "compassion":0.75
   },
   conservative: {
@@ -295,8 +344,9 @@ const TYPE_VALENCES = {
     "Democrats":0.22, "Republicans":0.78,
     "White people":0.80, "Black people":0.55, "women":0.72, "men":0.80,
     "working class people":0.65, "middle class people":0.80, "poor people":0.52,
-    "stricter gun laws":0.22, "abortion access":0.18, "universal health care":0.28,
-    "cutting taxes":0.82, "restricting immigration":0.80,
+    /* morality */ "abortion access":0.16, "same-sex marriage":0.22, "capital punishment":0.75,
+    /* economy  */ "cutting taxes":0.85, "raising the minimum wage":0.30, "universal health care":0.28,
+    /* nonpart  */ "paying college athletes":0.54, "disaster relief funding":0.75, "regulating AI companies":0.55,
     "freedom":0.88, "equality":0.55, "tradition":0.85, "security":0.88, "compassion":0.62
   },
   maga: {
@@ -304,8 +354,9 @@ const TYPE_VALENCES = {
     "Democrats":0.06, "Republicans":0.92,
     "White people":0.85, "Black people":0.40, "women":0.62, "men":0.88,
     "working class people":0.68, "middle class people":0.72, "poor people":0.42,
-    "stricter gun laws":0.06, "abortion access":0.06, "universal health care":0.12,
-    "cutting taxes":0.90, "restricting immigration":0.94,
+    /* morality */ "abortion access":0.06, "same-sex marriage":0.08, "capital punishment":0.84,
+    /* economy  */ "cutting taxes":0.92, "raising the minimum wage":0.20, "universal health care":0.12,
+    /* nonpart  */ "paying college athletes":0.50, "disaster relief funding":0.65, "regulating AI companies":0.44,
     "freedom":0.88, "equality":0.35, "tradition":0.92, "security":0.92, "compassion":0.42
   }
 };
@@ -591,10 +642,13 @@ function generatePairs(nodeMap) {
 ================================================================ */
 
 function genB1Trials(nodeMap) {
-  const targets = Object.values(nodeMap);
-  const reps = CONFIG.block1.repetitionsPerTarget, nSub = CONFIG.block1.subBlocks;
+  const reps = CONFIG.block1.repetitionsPerNode;
+  const nSub = CONFIG.block1.subBlocks;
+  const nodes = Object.values(nodeMap);
   const subs = Array.from({length: nSub}, () => []);
-  for (const node of targets) for (let r = 0; r < reps; r++) subs[r % nSub].push(node);
+  nodes.forEach((node, i) => {
+    for (let r = 0; r < reps; r++) subs[r % nSub].push(node);
+  });
   const all = []; let idx = 0;
   for (let b = 0; b < nSub; b++) {
     for (const node of reorderAvoidRepeats(shuffle(subs[b]), n => n.label))
@@ -621,13 +675,8 @@ function genB2Trials(pairs) {
 
 /* ================================================================
    RESPONSE SIMULATION
-   pGood:    use resolvedB1 valence for the node
    pTogether: Heider balance  p = 0.5 + 0.4 × (2v1−1)(2v2−1)
 ================================================================ */
-
-function pGood(ctx, label) {
-  return ctx.resolvedB1[label] ?? 0.5;
-}
 
 function pTogether(ctx, pairId) {
   const [a, b] = pairId.split(" | ");
@@ -652,29 +701,33 @@ function runParticipant(profile) {
   const rows = [];
   const now  = () => new Date().toISOString();
 
-  /* Block 1 */
+  /* Block 1 — good/bad evaluation */
   for (const t of b1T) {
     const { node }  = t;
-    const deadline  = CONFIG.timings.block1DeadlineMs;
-    const pg        = pGood(ctx, node.label);
-    const bias      = Math.abs(pg - 0.5);
+    const deadline  = CONFIG.block1.deadlineMs;
+    const val       = ctx.resolvedB1[node.label] ?? 0.5;
+    const bias      = Math.abs(val - 0.5);
     const timedOut  = Math.random() < profile.timeoutRate;
     const rt        = timedOut ? null : simRT(profile, bias, deadline);
-    const rl        = timedOut ? null : (Math.random() < pg ? "good" : "bad");
+    const rl        = timedOut ? null : (Math.random() < val ? "good" : "bad");
     const rk        = rl ? ctx.b1M[rl] : null;
     rows.push({
       participant_id: profile.id, first_name: profile.firstName,
       participant_type: profile.type, experiment_version: CONFIG.experimentVersion,
       block_name: "block1", subblock_number: t.subBlock, trial_index: t.trialIndex,
-      task_type: "single_target", mapping_condition: ctx.b1C,
+      task_type: "evaluation", mapping_condition: ctx.b1C,
       trial_start_timestamp: now(), rt_ms: rt, timeout: timedOut ? 1 : 0,
       response_key: rk, response_label: rl,
       target_label: node.label, target_category: node.category,
-      stimulus_presented: pick(node.stimuli)
+      target_subcategory: node.subcategory || null,
+      target_stimulus_presented: pick(node.stimuli),
+      pair_id: null, left_node_label: null, right_node_label: null,
+      left_node_category: null, right_node_category: null,
+      left_stimulus_presented: null, right_stimulus_presented: null
     });
   }
 
-  /* Block 2 */
+  /* Block 2 — pairwise association */
   for (const t of b2T) {
     const { pair }  = t;
     const deadline  = CONFIG.timings.block2DeadlineMs;
@@ -693,6 +746,8 @@ function runParticipant(profile) {
       task_type: "pairwise", mapping_condition: ctx.b2C,
       trial_start_timestamp: now(), rt_ms: rt, timeout: timedOut ? 1 : 0,
       response_key: rk, response_label: rl,
+      target_label: null, target_category: null, target_subcategory: null,
+      target_stimulus_presented: null,
       pair_id: pair.id,
       left_node_label: nL.label, right_node_label: nR.label,
       left_node_category: nL.category, right_node_category: nR.category,
@@ -707,30 +762,12 @@ function runParticipant(profile) {
    SUMMARIES
 ================================================================ */
 
-function b1Summary(rows) {
-  const grp = {};
-  rows.filter(r => r.block_name === "block1").forEach(r => {
-    (grp[r.target_label] = grp[r.target_label] || []).push(r);
-  });
-  return Object.entries(grp).map(([lbl, gr]) => {
-    const good = gr.filter(r => r.response_label === "good");
-    const bad  = gr.filter(r => r.response_label === "bad");
-    const n    = gr.length;
-    return {
-      participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
-      target_label: lbl, target_category: gr[0].target_category,
-      n_trials: n, n_good: good.length, n_bad: bad.length,
-      prop_good: n ? round(good.length/n) : null, prop_bad: n ? round(bad.length/n) : null,
-      median_rt_all:  median(gr.filter(r=>!r.timeout).map(r=>r.rt_ms)),
-      median_rt_good: median(good.filter(r=>!r.timeout).map(r=>r.rt_ms)),
-      median_rt_bad:  median(bad.filter(r=>!r.timeout).map(r=>r.rt_ms)),
-      timeout_rate: n ? round(gr.filter(r=>r.timeout).length/n) : null,
-      mapping_condition: gr[0].mapping_condition
-    };
-  });
-}
-
 function b2Summary(rows, nodeMap) {
+  /* Within-person baseline: median RT across all non-timeout B2 trials */
+  const participantMedianRT = median(
+    rows.filter(r => r.block_name === "block2" && !r.timeout).map(r => r.rt_ms)
+  ) || 1000;
+
   const grp = {};
   rows.filter(r => r.block_name === "block2").forEach(r => {
     (grp[r.pair_id] = grp[r.pair_id] || []).push(r);
@@ -740,6 +777,7 @@ function b2Summary(rows, nodeMap) {
     const ap  = gr.filter(r => r.response_label === "apart");
     const n   = gr.length;
     const [n1, n2] = pid.split(" | ");
+    const mrt = median(gr.filter(r=>!r.timeout).map(r=>r.rt_ms));
     return {
       participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
       pair_id: pid, node1_label: n1, node2_label: n2,
@@ -747,11 +785,50 @@ function b2Summary(rows, nodeMap) {
       node2_category: (nodeMap[n2]||{}).category||"",
       n_trials: n, n_together: tog.length, n_apart: ap.length,
       prop_together: n ? round(tog.length/n) : null, prop_apart: n ? round(ap.length/n) : null,
-      median_rt_all:      median(gr.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      median_rt_all:      mrt,
       median_rt_together: median(tog.filter(r=>!r.timeout).map(r=>r.rt_ms)),
       median_rt_apart:    median(ap.filter(r=>!r.timeout).map(r=>r.rt_ms)),
+      /* rt_ratio: pair RT relative to this person's average B2 RT */
+      rt_ratio: mrt != null ? round(mrt / participantMedianRT) : null,
+      participant_median_rt: participantMedianRT,
       timeout_rate: n ? round(gr.filter(r=>r.timeout).length/n) : null,
       mapping_condition: gr[0].mapping_condition
+    };
+  });
+}
+
+function b1Summary(rows) {
+  /* Within-person B1 median RT baseline */
+  const b1ByPerson = {};
+  rows.filter(r => r.block_name === "block1" && !r.timeout)
+      .forEach(r => (b1ByPerson[r.participant_id] = b1ByPerson[r.participant_id] || []).push(r.rt_ms));
+  const personMedB1 = {};
+  for (const [pid, rts] of Object.entries(b1ByPerson))
+    personMedB1[pid] = median(rts) || 1000;
+
+  const grp = {};
+  rows.filter(r => r.block_name === "block1").forEach(r => {
+    const key = r.participant_id + "|" + r.target_label;
+    (grp[key] = grp[key] || []).push(r);
+  });
+  return Object.values(grp).map(gr => {
+    const good = gr.filter(r => r.response_label === "good");
+    const bad  = gr.filter(r => r.response_label === "bad");
+    const n    = gr.length;
+    const mrt  = median(gr.filter(r => !r.timeout).map(r => r.rt_ms));
+    const pmed = personMedB1[gr[0].participant_id] || 1000;
+    return {
+      participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
+      target_label: gr[0].target_label, target_category: gr[0].target_category,
+      target_subcategory: gr[0].target_subcategory || null,
+      n_trials: n, n_good: good.length, n_bad: bad.length,
+      prop_good: n ? round(good.length / n) : null,
+      median_rt_all:  mrt,
+      median_rt_good: median(good.filter(r => !r.timeout).map(r => r.rt_ms)),
+      median_rt_bad:  median(bad.filter(r => !r.timeout).map(r => r.rt_ms)),
+      rt_ratio: mrt != null ? round(mrt / pmed) : null,
+      participant_median_rt_b1: pmed,
+      timeout_rate: n ? round(gr.filter(r => r.timeout).length / n) : null
     };
   });
 }
@@ -786,9 +863,9 @@ function runSimulation() {
   }
 
   log("═══ Simulation Start ═══════════════════════════════════", "hdr");
-  log(`Participants: ${nTarget}  ·  nodes/participant: ${CONFIG.nodesPerParticipant}  ·  B1: ${CONFIG.block1.repetitionsPerTarget} reps/target  ·  B2: ${CONFIG.block2.repetitionsPerPair} reps/pair\n`, "info");
+  log(`Participants: ${nTarget}  ·  nodes/participant: ${CONFIG.nodesPerParticipant}  ·  B1: ${CONFIG.block1.repetitionsPerNode} reps/node  ·  B2: ${CONFIG.block2.repetitionsPerPair} reps/pair\n`, "info");
 
-  const allTrials = [], allB1 = [], allB2 = [];
+  const allTrials = [], allB2 = [];
 
   let i = 0;
   function next() {
@@ -797,9 +874,7 @@ function runSimulation() {
     const { rows, nodeMap } = runParticipant(p);
     allTrials.push(...rows);
 
-    const b1s = b1Summary(rows);
     const b2s = b2Summary(rows, nodeMap);
-    allB1.push(...b1s);
     allB2.push(...b2s);
 
     const b1r   = rows.filter(r => r.block_name === "block1");
@@ -811,8 +886,8 @@ function runSimulation() {
 
     log(
       `${p.id}  ${p.firstName.padEnd(10)} [${p.type.padEnd(26)}]  ` +
-      `B1: ${String(b1r.length).padStart(3)} trials, ${b1tos} TOs, med=${b1med}ms  ` +
-      `B2: ${String(b2r.length).padStart(3)} trials, ${b2tos} TOs, med=${b2med}ms`,
+      `B1: ${String(b1r.length).padStart(2)} trials med=${b1med}ms  ` +
+      `B2: ${String(b2r.length).padStart(3)} trials med=${b2med}ms  TOs:${b1tos+b2tos}`,
       "ok"
     );
 
@@ -821,24 +896,23 @@ function runSimulation() {
 
   function finish() {
     _allTrials = allTrials;
-    _b1Sum     = allB1;
+    _b1Sum     = b1Summary(allTrials);
     _b2Sum     = allB2;
 
-    const totalTO  = allTrials.filter(r => r.timeout).length;
-    const allRTs   = allTrials.filter(r => !r.timeout).map(r => r.rt_ms);
-    const medRT    = median(allRTs);
     const b1Trials = allTrials.filter(r => r.block_name === "block1").length;
     const b2Trials = allTrials.filter(r => r.block_name === "block2").length;
+    const totalTO  = allTrials.filter(r => r.timeout).length;
+    const medRT    = median(allTrials.filter(r => !r.timeout).map(r => r.rt_ms));
 
     log("\n═══ Summary ═════════════════════════════════════════════", "hdr");
     log(`Total participants : ${nTarget}`, "info");
-    log(`Total trials       : ${allTrials.length}  (B1: ${b1Trials}, B2: ${b2Trials})`, "info");
+    log(`Total trials       : ${allTrials.length}  (B1: ${b1Trials}  B2: ${b2Trials})`, "info");
     log(`Total timeouts     : ${totalTO} (${(totalTO/allTrials.length*100).toFixed(1)}%)`, "info");
     log(`Overall median RT  : ${medRT} ms`, "info");
     log(`\nData ready. Use download buttons below.`, "ok");
 
     document.getElementById("downloads").classList.add("visible");
-    buildSummaryTable(allB1, allB2);
+    buildSummaryTable(_b1Sum, allB2);
     runAnalysis();
     btn.disabled = false;
     btn.textContent = "↺ Re-run Simulation";
@@ -852,19 +926,6 @@ function runSimulation() {
 ================================================================ */
 
 function buildSummaryTable(b1, b2) {
-  const b1Agg = {};
-  for (const r of b1) {
-    if (!b1Agg[r.target_label]) b1Agg[r.target_label] = { cat: r.target_category, vals: [] };
-    if (r.prop_good != null) b1Agg[r.target_label].vals.push(r.prop_good);
-  }
-
-  const b2Agg = {};
-  for (const r of b2) {
-    if (!b2Agg[r.pair_id]) b2Agg[r.pair_id] = { n1: r.node1_label, n2: r.node2_label, vals: [] };
-    if (r.prop_together != null) b2Agg[r.pair_id].vals.push(r.prop_together);
-  }
-
-  const avg = arr => arr.length ? (arr.reduce((a,b) => a+b, 0)/arr.length).toFixed(2) : "—";
   const bar = (v, len=12) => {
     const n = Math.round(v * len);
     return "█".repeat(n) + "░".repeat(len - n);
@@ -874,19 +935,35 @@ function buildSummaryTable(b1, b2) {
     Aggregate results (means across all participants)
   </div>`;
 
-  html += `<div style="color:#5a9;margin-bottom:6px;font-size:0.8rem;">Block 1 — Evaluation (mean prop_good per target, sorted)</div>`;
-  html += `<table><tr><th>Target</th><th>Category</th><th>N participants</th><th>Mean prop_good</th><th>Bar</th></tr>`;
-  const b1Sorted = Object.entries(b1Agg).sort((a,b) => {
-    const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
-    const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
-    return mb - ma;
-  });
-  for (const [lbl, d] of b1Sorted) {
-    const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
-    html += `<tr><td>${lbl}</td><td>${d.cat}</td><td>${d.vals.length}</td><td>${m.toFixed(2)}</td><td style="color:#5a9;letter-spacing:-1px">${bar(m)}</td></tr>`;
+  /* ── Block 1: valence summary ── */
+  if (b1.length) {
+    const b1Agg = {};
+    for (const r of b1) {
+      if (!b1Agg[r.target_label]) b1Agg[r.target_label] = { cat: r.target_category, sub: r.target_subcategory, vals: [], rts: [] };
+      if (r.prop_good != null) b1Agg[r.target_label].vals.push(r.prop_good);
+      if (r.median_rt_all != null) b1Agg[r.target_label].rts.push(r.median_rt_all);
+    }
+    const b1Sorted = Object.entries(b1Agg).sort((a,b) => {
+      const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
+      const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
+      return mb - ma;
+    });
+    html += `<div style="color:#e8a030;margin:18px 0 6px;font-size:0.8rem;">Block 1 — Valence (mean prop_good per node)</div>`;
+    html += `<table><tr><th>Node</th><th>Category</th><th>N participants</th><th>Mean prop_good</th><th>Bar</th></tr>`;
+    for (const [lbl, d] of b1Sorted) {
+      const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
+      const col = m >= 0.5 ? "#27ae60" : "#e67e22";
+      html += `<tr><td>${lbl}</td><td>${d.sub ? d.sub : d.cat}</td><td>${d.vals.length}</td><td style="color:${col}">${m.toFixed(2)}</td><td style="color:${col};letter-spacing:-1px">${bar(m)}</td></tr>`;
+    }
+    html += `</table>`;
   }
-  html += `</table>`;
 
+  /* ── Block 2: association summary ── */
+  const b2Agg = {};
+  for (const r of b2) {
+    if (!b2Agg[r.pair_id]) b2Agg[r.pair_id] = { n1: r.node1_label, n2: r.node2_label, vals: [] };
+    if (r.prop_together != null) b2Agg[r.pair_id].vals.push(r.prop_together);
+  }
   html += `<div style="color:#5a9;margin:18px 0 6px;font-size:0.8rem;">Block 2 — Association (mean prop_together per pair, top 30 sorted)</div>`;
   html += `<table><tr><th>Node 1</th><th>Node 2</th><th>N participants</th><th>Mean prop_together</th><th>Bar</th></tr>`;
   const b2Sorted = Object.entries(b2Agg)
@@ -915,10 +992,10 @@ document.getElementById("run-btn").addEventListener("click", runSimulation);
 
 function downloadAll() {
   const zip = makeZip([
-    { name: "all_trials.csv",            data: toCSV(_allTrials) },
-    { name: "all_trials.json",           data: JSON.stringify(_allTrials, null, 2) },
-    { name: "block1_target_summary.csv", data: toCSV(_b1Sum) },
-    { name: "block2_pair_summary.csv",   data: toCSV(_b2Sum) }
+    { name: "all_trials.csv",                  data: toCSV(_allTrials) },
+    { name: "all_trials.json",                 data: JSON.stringify(_allTrials, null, 2) },
+    { name: "block1_evaluation_summary.csv",   data: toCSV(_b1Sum) },
+    { name: "block2_pair_summary.csv",         data: toCSV(_b2Sum) }
   ]);
   downloadFile(zip, "simulation_results.zip", "application/zip");
 }
@@ -929,7 +1006,7 @@ document.getElementById("dl-trials-csv").addEventListener("click", () =>
 document.getElementById("dl-trials-json").addEventListener("click", () =>
   downloadFile(JSON.stringify(_allTrials, null, 2), "all_trials.json", "application/json"));
 document.getElementById("dl-b1").addEventListener("click", () =>
-  downloadFile(toCSV(_b1Sum), "block1_target_summary.csv", "text/csv"));
+  downloadFile(toCSV(_b1Sum), "block1_evaluation_summary.csv", "text/csv"));
 document.getElementById("dl-b2").addEventListener("click", () =>
   downloadFile(toCSV(_b2Sum), "block2_pair_summary.csv", "text/csv"));
 
@@ -942,30 +1019,53 @@ const MIN_N_PART        = 3;
 const CAT_COLORS = { identity:"#5b8dd9", policy:"#6ac46a", values:"#c97de8" };
 const DIR_COLORS = { together:"#27ae60", apart:"#e67e22" };
 
-function valenceColor(v) {
-  // negative (0) → red, neutral (0.5) → gray, positive (1) → blue
-  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
-  const rgb = (r, g, b) => `rgb(${r},${g},${b})`;
-  if (v < 0.5) {
-    const t = v / 0.5;
-    return rgb(lerp(192,120,t), lerp(57,120,t), lerp(43,120,t));
-  }
-  const t = (v - 0.5) / 0.5;
-  return rgb(lerp(120,58,t), lerp(120,130,t), lerp(120,196,t));
+/* ── Valence color helpers ── */
+function lerpColor(hex1, hex2, t) {
+  const p = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  const [r1,g1,b1] = p(hex1), [r2,g2,b2] = p(hex2);
+  const r=Math.round(r1+(r2-r1)*t), g=Math.round(g1+(g2-g1)*t), b=Math.round(b1+(b2-b1)*t);
+  return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
+}
+/* score: 0=bad(dark red), 0.5=neutral(slate), 1=good(dark blue) */
+function valenceColor(score) {
+  if (score == null) return "#3a4455";
+  const t = Math.max(0, Math.min(1, score));
+  return t < 0.5 ? lerpColor("#3a4455", "#8b0000", 1 - t * 2)
+                 : lerpColor("#3a4455", "#003580", (t - 0.5) * 2);
 }
 
-/* ── Aggregation ── */
-function aggB1(b1rows) {
+/* ── Aggregate B1 summary into per-node RT-weighted valence ── */
+function computeNodeValences(b1Sum) {
   const g = {};
-  for (const r of b1rows) {
-    if (!g[r.target_label]) g[r.target_label] = { cat: r.target_category, vals: [] };
-    if (r.prop_good != null) g[r.target_label].vals.push(r.prop_good);
+  for (const r of b1Sum) {
+    if (!g[r.target_label]) g[r.target_label] = { propGoods: [], ratios: [] };
+    if (r.prop_good  != null) g[r.target_label].propGoods.push(r.prop_good);
+    if (r.rt_ratio   != null) g[r.target_label].ratios.push(r.rt_ratio);
   }
-  return Object.entries(g).map(([label, d]) => ({
-    label, category: d.cat,
-    meanValence: d.vals.reduce((s,v)=>s+v,0) / d.vals.length,
-    n: d.vals.length
-  }));
+  const out = {};
+  for (const [label, d] of Object.entries(g)) {
+    const meanPropGood = d.propGoods.reduce((s,v)=>s+v,0) / d.propGoods.length;
+    const meanRatio    = d.ratios.length ? d.ratios.reduce((s,v)=>s+v,0)/d.ratios.length : 1.0;
+    const rtFactor     = Math.max(0.4, 1 - 0.3 * meanRatio);
+    /* Signed valence weighted by RT confidence; keep in [-0.5, +0.5] */
+    const valenceCentered = (meanPropGood - 0.5) * rtFactor;
+    out[label] = {
+      meanPropGood, meanRatio, rtFactor, valenceCentered,
+      valenceScore: 0.5 + valenceCentered   // [~0.2, ~0.8] in practice
+    };
+  }
+  return out;
+}
+
+/* ── Extract nodes from B2 rows (no valence — Block 1 removed) ── */
+function getNodesFromEdges(b2rows) {
+  const nodeSet = new Set();
+  const nodeCat = {};
+  for (const r of b2rows) {
+    nodeSet.add(r.node1_label); nodeCat[r.node1_label] = r.node1_category;
+    nodeSet.add(r.node2_label); nodeCat[r.node2_label] = r.node2_category;
+  }
+  return [...nodeSet].map(label => ({ label, category: nodeCat[label] || "" }));
 }
 
 function aggB2(b2rows) {
@@ -973,17 +1073,28 @@ function aggB2(b2rows) {
   for (const r of b2rows) {
     if (!g[r.pair_id]) g[r.pair_id] = {
       n1: r.node1_label, n2: r.node2_label,
-      n1cat: r.node1_category, n2cat: r.node2_category, vals: []
+      n1cat: r.node1_category, n2cat: r.node2_category, vals: [], ratios: [], rts: []
     };
     if (r.prop_together != null) g[r.pair_id].vals.push(r.prop_together);
+    /* Within-person RT ratio: pairRT / personMeanRT (1.0 = at person's average) */
+    if (r.rt_ratio != null) g[r.pair_id].ratios.push(r.rt_ratio);
+    if (r.median_rt_all != null) g[r.pair_id].rts.push(r.median_rt_all);
   }
   return Object.entries(g)
     .filter(([,d]) => d.vals.length >= MIN_N_PART)
     .map(([id, d]) => {
       const mean = d.vals.reduce((s,v)=>s+v,0) / d.vals.length;
+      /* meanRatio = 1.0 means pair RT matches person average; <1 = faster; >1 = slower */
+      const meanRatio = d.ratios.length ? d.ratios.reduce((s,v)=>s+v,0)/d.ratios.length : 1.0;
+      const meanRT    = d.rts.length ? d.rts.reduce((s,v)=>s+v,0)/d.rts.length : null;
+      /* rtFactor: within-person normalized — ratio=1 → 0.70, ratio=0.5 → 0.85, ratio≥2 → 0.40 */
+      const rtFactor = Math.max(0.4, 1 - 0.3 * meanRatio);
+      const assocStrength = Math.abs(mean - 0.5);
       return { id, n1:d.n1, n2:d.n2, n1cat:d.n1cat, n2cat:d.n2cat,
                meanAssoc:mean, centeredAssoc:mean-0.5,
-               assocStrength:Math.abs(mean-0.5), nPart:d.vals.length };
+               assocStrength, rtFactor, meanRatio, meanRT,
+               rtWeightedStrength: assocStrength * rtFactor,
+               nPart:d.vals.length };
     })
     .filter(e => e.assocStrength >= EDGE_THRESHOLD);
 }
@@ -992,18 +1103,20 @@ function aggB2(b2rows) {
 function computeCentrality(nodes, edges) {
   const nm = {}; nodes.forEach(n => { nm[n.label]=n; n.strength=0; n.eigen=1; });
   edges.forEach(e => {
-    if (nm[e.n1]) nm[e.n1].strength += e.assocStrength;
-    if (nm[e.n2]) nm[e.n2].strength += e.assocStrength;
+    const w = e.rtWeightedStrength ?? e.assocStrength;
+    if (nm[e.n1]) nm[e.n1].strength += w;
+    if (nm[e.n2]) nm[e.n2].strength += w;
   });
   const maxS = Math.max(...nodes.map(n=>n.strength)) || 1;
   nodes.forEach(n => n.strengthNorm = n.strength / maxS);
-  // Power iteration for eigenvector
+  // Power iteration for eigenvector (RT-weighted)
   for (let i = 0; i < 60; i++) {
     const nxt = {}; nodes.forEach(n => nxt[n.label]=0);
     edges.forEach(e => {
+      const w = e.rtWeightedStrength ?? e.assocStrength;
       if (nm[e.n1]&&nm[e.n2]) {
-        nxt[e.n1] += nm[e.n2].eigen * e.assocStrength;
-        nxt[e.n2] += nm[e.n1].eigen * e.assocStrength;
+        nxt[e.n1] += nm[e.n2].eigen * w;
+        nxt[e.n2] += nm[e.n1].eigen * w;
       }
     });
     const maxE = Math.max(...Object.values(nxt)) || 1;
@@ -1134,120 +1247,7 @@ function drawNodeShape(category, cx, cy, r, fill, stroke, sw) {
 }
 
 /* ── Render: Network ── */
-function renderNetwork(nodes, edges) {
-  const W=880, H=580;
-  const ln = nodes.map(n=>({...n}));
-  forceLayout(ln, edges, W, H);
-  const nm={}; ln.forEach(n=>nm[n.label]=n);
-  const svg = makeSVG(W,H);
-
-  // Edges
-  edges.forEach(e => {
-    const s=nm[e.n1], t=nm[e.n2]; if(!s||!t) return;
-    svg.appendChild(svgEl("line",{
-      x1:s.x.toFixed(1),y1:s.y.toFixed(1),x2:t.x.toFixed(1),y2:t.y.toFixed(1),
-      stroke: e.centeredAssoc>=0 ? DIR_COLORS.together : DIR_COLORS.apart,
-      "stroke-width": (0.8+e.assocStrength*14).toFixed(1),
-      "stroke-opacity": Math.min(0.2+e.assocStrength*1.6,0.9).toFixed(2),
-      "stroke-linecap":"round"
-    }));
-  });
-
-  // Nodes
-  ln.forEach(n => {
-    const r = 13+n.strengthNorm*11;
-    const g = document.createElementNS(SVG_NS,"g");
-    g.appendChild(drawNodeShape(n.category, n.x, n.y, r,
-      valenceColor(n.meanValence), "#33394a", "1.5"));
-    const lines = labelLines(n.label);
-    const baseY = n.y + r + 11;
-    lines.forEach((txt,i) => {
-      const t = document.createElementNS(SVG_NS,"text");
-      Object.entries({"x":n.x.toFixed(1),"y":(baseY+i*12).toFixed(1),
-        "text-anchor":"middle","font-size":"8.5",
-        "font-family":"sans-serif","fill":"#ddd","font-weight":"bold"})
-        .forEach(([k,v])=>t.setAttribute(k,v));
-      t.textContent = txt;
-      g.appendChild(t);
-    });
-    svg.appendChild(g);
-  });
-
-  // Legend — lower-right
-  const lgW=172, lgH=188;
-  const lg = document.createElementNS(SVG_NS,"g");
-  lg.setAttribute("transform",`translate(${W-lgW-10},${H-lgH-10})`);
-  lg.appendChild(svgEl("rect",{width:lgW,height:lgH,rx:4,fill:"#1a1f2e",opacity:0.93}));
-  // Valence gradient
-  for (let i=0;i<90;i++) {
-    lg.appendChild(svgEl("rect",{x:10+i*1.68,y:12,width:1.75,height:8,fill:valenceColor(i/89)}));
-  }
-  [["Negative",10,"start"],["Positive",lgW-10,"end"]].forEach(([lbl,x,anchor])=>{
-    const t=document.createElementNS(SVG_NS,"text");
-    Object.entries({"x":x,"y":28,"font-size":"8","font-family":"sans-serif",
-      "fill":"#888","text-anchor":anchor}).forEach(([k,v])=>t.setAttribute(k,v));
-    t.textContent=lbl; lg.appendChild(t);
-  });
-  // Shape key
-  [["identity","circle","Identity"],["policy","square","Policy"],["values","diamond","Values"]].forEach(([cat,,lbl],i)=>{
-    const cy=50+i*22, cx=18;
-    lg.appendChild(drawNodeShape(cat, cx, cy, 8, "#555", "#aaa", "1.5"));
-    const t=document.createElementNS(SVG_NS,"text");
-    Object.entries({"x":34,"y":cy+4,"font-size":"9","font-family":"sans-serif","fill":"#ccc"})
-      .forEach(([k,v])=>t.setAttribute(k,v));
-    t.textContent=lbl; lg.appendChild(t);
-  });
-  // Edge key
-  [["together","go together"],["apart","do not go together"]].forEach(([dir,lbl],i)=>{
-    const y2=120+i*22;
-    lg.appendChild(svgEl("line",{x1:10,y1:y2,x2:32,y2:y2,stroke:DIR_COLORS[dir],"stroke-width":2.5}));
-    const t=document.createElementNS(SVG_NS,"text");
-    Object.entries({"x":38,"y":y2+4,"font-size":"9","font-family":"sans-serif","fill":"#ccc"})
-      .forEach(([k,v])=>t.setAttribute(k,v));
-    t.textContent=lbl; lg.appendChild(t);
-  });
-  svg.appendChild(lg);
-  addZoom(svg);
-  document.getElementById("viz-network").replaceChildren(svg);
-}
-
-/* ── Render: Valence bar chart ── */
-function renderValenceChart(nodes) {
-  const sorted = [...nodes].sort((a,b)=>b.meanValence-a.meanValence);
-  const bH=24, L=190, R=70, T=10, B=24;
-  const W=700, maxW=W-L-R, H=T+sorted.length*bH+B;
-  const svg=makeSVG(W,H);
-
-  // Grid lines
-  [0,0.25,0.5,0.75,1].forEach(v=>{
-    const x=L+v*maxW;
-    svg.appendChild(svgEl("line",{x1:x,y1:T,x2:x,y2:H-B,stroke:v===0.5?"#444":"#1e1e1e","stroke-width":v===0.5?1:0.8,"stroke-dasharray":v===0.5?"5,3":""}));
-    const t=document.createElementNS(SVG_NS,"text");
-    Object.entries({x,y:H-B+14,"text-anchor":"middle","font-size":"9","font-family":"sans-serif","fill":"#555"})
-      .forEach(([k,v2])=>t.setAttribute(k,v2));
-    t.textContent=v.toFixed(2); svg.appendChild(t);
-  });
-
-  sorted.forEach((n,i)=>{
-    const y=T+i*bH, bw=n.meanValence*maxW;
-    svg.appendChild(svgEl("rect",{x:L,y:y+3,width:bw.toFixed(1),height:bH-6,
-      fill:valenceColor(n.meanValence),rx:2}));
-    svg.appendChild(svgEl("rect",{x:L,y:y+3,width:bw.toFixed(1),height:bH-6,
-      fill:"none",stroke:CAT_COLORS[n.category]||"#aaa","stroke-width":1.5,rx:2}));
-    const tLabel=document.createElementNS(SVG_NS,"text");
-    Object.entries({x:L-7,y:y+bH/2+1,"text-anchor":"end","dominant-baseline":"middle",
-      "font-size":"10","font-family":"sans-serif","fill":"#ccc"})
-      .forEach(([k,v])=>tLabel.setAttribute(k,v));
-    tLabel.textContent=n.label; svg.appendChild(tLabel);
-    const tVal=document.createElementNS(SVG_NS,"text");
-    Object.entries({x:L+bw+6,y:y+bH/2+1,"dominant-baseline":"middle",
-      "font-size":"9","font-family":"sans-serif","fill":"#888"})
-      .forEach(([k,v])=>tVal.setAttribute(k,v));
-    tVal.textContent=n.meanValence.toFixed(2); svg.appendChild(tVal);
-  });
-  addZoom(svg);
-  document.getElementById("viz-valence").replaceChildren(svg);
-}
+/* renderNetwork removed — networks open interactively only */
 
 /* ── Render: Me connections ── */
 function renderMeChart(edges, nodes) {
@@ -1255,7 +1255,9 @@ function renderMeChart(edges, nodes) {
   const me = edges.filter(e=>e.n1==="me"||e.n2==="me").map(e=>({
     other: e.n1==="me"?e.n2:e.n1,
     cat:   e.n1==="me"?e.n2cat:e.n1cat,
-    centered: e.centeredAssoc, mean: e.meanAssoc, str: e.assocStrength
+    centered: e.centeredAssoc, mean: e.meanAssoc,
+    str: e.rtWeightedStrength ?? e.assocStrength,
+    rt: e.meanRT
   })).sort((a,b)=>b.centered-a.centered);
 
   if (!me.length) { document.getElementById("viz-me").innerHTML='<p style="color:#555;padding:16px">No me-edges above threshold.</p>'; return; }
@@ -1313,16 +1315,23 @@ function renderMeChart(edges, nodes) {
 /* ── Render: Centrality table ── */
 function renderCentralityTable(nodes) {
   const sorted=[...nodes].sort((a,b)=>b.strengthNorm-a.strengthNorm);
-  const rows=sorted.map(n=>`<tr>
-    <td>${n.label}</td>
-    <td style="color:${CAT_COLORS[n.category]||'#aaa'}">${n.category}</td>
-    <td>${n.strengthNorm.toFixed(3)}</td>
-    <td>${n.eigen.toFixed(3)}</td>
-    <td>${n.meanValence.toFixed(3)}</td>
-  </tr>`).join("");
+  const rows=sorted.map(n=>{
+    const vScore = n.valenceScore;
+    const vLabel = vScore != null
+      ? `<span style="color:${valenceColor(vScore)}">${(n.meanPropGood||0).toFixed(2)}</span>`
+      : `<span style="color:#555">—</span>`;
+    return `<tr>
+      <td style="color:${valenceColor(vScore)};font-weight:bold">●</td>
+      <td>${n.label}</td>
+      <td style="color:${CAT_COLORS[n.category]||'#aaa'}">${n.category}</td>
+      <td>${vLabel}</td>
+      <td>${n.strengthNorm.toFixed(3)}</td>
+      <td>${n.eigen.toFixed(3)}</td>
+    </tr>`;
+  }).join("");
   document.getElementById("viz-centrality").innerHTML=`
-    <table style="max-width:600px">
-      <tr><th>Node</th><th>Category</th><th>Strength</th><th>Eigenvector</th><th>Valence</th></tr>
+    <table style="max-width:700px">
+      <tr><th></th><th>Node</th><th>Category</th><th>Valence (prop good)</th><th>Strength</th><th>Eigenvector</th></tr>
       ${rows}
     </table>`;
 }
@@ -1350,93 +1359,6 @@ const CAMP_MAP = {
   maga:                   "Conservative"
 };
 
-/* ── Render one group network, returns SVG element ── */
-function renderGroupNetwork(camp, b1rows, b2rows) {
-  const pids = new Set(
-    b1rows.filter(r => CAMP_MAP[r.participant_type] === camp)
-          .map(r => r.participant_id)
-  );
-  if (pids.size < 2) return null;
-
-  const campB1 = b1rows.filter(r => pids.has(r.participant_id));
-  const campB2 = b2rows.filter(r => pids.has(r.participant_id));
-
-  const nodeData = aggB1(campB1);
-  const edgeData = aggB2(campB2);
-  if (!edgeData.length) return null;
-
-  const active = new Set(edgeData.flatMap(e=>[e.n1,e.n2]));
-  const nodes  = nodeData.filter(n=>active.has(n.label));
-  computeCentrality(nodes, edgeData);
-
-  const W=880, H=420;
-  const ln = nodes.map(n=>({...n}));
-  forceLayout(ln, edgeData, W, H);
-  const nm={}; ln.forEach(n=>nm[n.label]=n);
-
-  const svg = makeSVG(W, H+36); // extra height for title
-
-  // Camp title
-  const campColors = { Liberal:"#5b8dd9", Centrist:"#e8a030", Conservative:"#d45f3c" };
-  const title = document.createElementNS(SVG_NS,"text");
-  Object.entries({x:W/2, y:20, "text-anchor":"middle", "font-size":"13",
-    "font-weight":"bold", "font-family":"sans-serif", fill:campColors[camp]||"#ccc"})
-    .forEach(([k,v])=>title.setAttribute(k,v));
-  title.textContent = `${camp}  (n = ${pids.size})`;
-  svg.appendChild(title);
-
-  // Shift all node rendering down by 36px
-  const oy = 36;
-
-  // Edges
-  edgeData.forEach(e => {
-    const s=nm[e.n1], t=nm[e.n2]; if(!s||!t) return;
-    svg.appendChild(svgEl("line",{
-      x1:s.x.toFixed(1), y1:(s.y+oy).toFixed(1),
-      x2:t.x.toFixed(1), y2:(t.y+oy).toFixed(1),
-      stroke: e.centeredAssoc>=0 ? DIR_COLORS.together : DIR_COLORS.apart,
-      "stroke-width": (0.8+e.assocStrength*14).toFixed(1),
-      "stroke-opacity": Math.min(0.2+e.assocStrength*1.6, 0.9).toFixed(2),
-      "stroke-linecap":"round"
-    }));
-  });
-
-  // Nodes
-  ln.forEach(n => {
-    const r=12+n.strengthNorm*10;
-    const g=document.createElementNS(SVG_NS,"g");
-    g.appendChild(drawNodeShape(n.category, n.x, n.y+oy, r,
-      valenceColor(n.meanValence), "#33394a", "1.5"));
-    const lines=labelLines(n.label);
-    const baseY=n.y+oy+r+11;
-    lines.forEach((txt,i)=>{
-      const t=document.createElementNS(SVG_NS,"text");
-      Object.entries({x:n.x.toFixed(1), y:(baseY+i*12).toFixed(1),
-        "text-anchor":"middle","font-size":"8","font-family":"sans-serif",
-        "fill":"#ddd","font-weight":"bold"})
-        .forEach(([k,v])=>t.setAttribute(k,v));
-      t.textContent=txt; g.appendChild(t);
-    });
-    svg.appendChild(g);
-  });
-
-  addZoom(svg);
-  return svg;
-}
-
-/* ── Render: all group networks ── */
-function renderGroupNetworks() {
-  const container = document.getElementById("viz-groups");
-  container.replaceChildren();
-  ["Liberal","Centrist","Conservative"].forEach(camp => {
-    const svg = renderGroupNetwork(camp, _b1Sum, _b2Sum);
-    if (svg) {
-      container.appendChild(svg);
-      container.appendChild(Object.assign(document.createElement("div"),
-        {style:"height:24px"}));
-    }
-  });
-}
 
 /* ── Collapsible section toggle ── */
 function openSection(sectionId) {
@@ -1466,22 +1388,245 @@ function setupToggles() {
   });
 }
 
+/* ── Interactive graph page generator ── */
+function generateInteractiveHTML(nodesIn, edgesIn, title) {
+  const nd = JSON.stringify(nodesIn.map(n => ({
+    label: n.label, category: n.category,
+    strengthNorm: +(n.strengthNorm||0).toFixed(4),
+    eigen: +(n.eigen||0).toFixed(4),
+    valenceScore: n.valenceScore != null ? +n.valenceScore.toFixed(4) : null,
+    meanPropGood: n.meanPropGood != null ? +n.meanPropGood.toFixed(4) : null
+  })));
+  const ed = JSON.stringify(edgesIn.map(e => ({
+    id: e.id, n1: e.n1, n2: e.n2,
+    centeredAssoc: +e.centeredAssoc.toFixed(4),
+    assocStrength: +e.assocStrength.toFixed(4),
+    rtWeightedStrength: +((e.rtWeightedStrength||e.assocStrength)).toFixed(4),
+    meanAssoc: +e.meanAssoc.toFixed(4),
+    meanRT: e.meanRT ? Math.round(e.meanRT) : null,
+    nPart: e.nPart
+  })));
+  const safe = title.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${safe}</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;overflow:hidden;font-family:sans-serif;user-select:none}
+#svg{display:block}
+#tooltip{position:fixed;pointer-events:none;display:none;z-index:200;background:rgba(10,14,26,.97);border:1px solid #2a3a5a;border-radius:5px;padding:8px 12px;font-size:12px;line-height:1.65;color:#ccc;max-width:260px}
+#controls{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:100;background:rgba(13,17,30,.88);border:1px solid #222;border-radius:6px;padding:8px 16px}
+button{background:#1a2535;color:#9ab;border:1px solid #2a3a5a;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:12px;font-family:inherit}
+button:hover{background:#243045}
+label{color:#778;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px}
+#page-title{position:fixed;top:10px;left:50%;transform:translateX(-50%);color:#e8a030;font-size:14px;font-weight:bold;pointer-events:none;background:rgba(13,17,30,.75);padding:4px 16px;border-radius:4px}
+#hint{position:fixed;top:40px;left:50%;transform:translateX(-50%);color:#3a3a3a;font-size:10px;pointer-events:none;white-space:nowrap}
+</style></head><body>
+<div id="page-title">${safe}</div>
+<div id="hint">Scroll = zoom · Drag background = pan · Drag nodes = reposition · Hover = details · Dbl-click = reset</div>
+<svg id="svg"></svg><div id="tooltip"></div>
+<div id="controls">
+  <button onclick="resetView()">⌂ Reset</button>
+  <button onclick="doLayout()">↺ Relayout</button>
+  <label><input type="checkbox" id="ew" onchange="setELabels(this.checked)"> Edge weights</label>
+</div>
+<script>
+"use strict";
+const NODES=${nd}, EDGES=${ed};
+const NS="http://www.w3.org/2000/svg";
+const DC={together:"#27ae60",apart:"#e67e22"};
+const W=window.innerWidth, H=window.innerHeight;
+function el(tag,a){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e;}
+function star5(cx,cy,r){const pts=[];const ir=r*0.42;for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2;const rad=i%2===0?r:ir;pts.push((cx+rad*Math.cos(a)).toFixed(1)+","+(cy+rad*Math.sin(a)).toFixed(1));}return pts.join(" ");}
+function shape(cat,cx,cy,r,fill,stroke,sw,lbl){const a={fill,stroke,"stroke-width":sw};if(lbl==="me")return el("polygon",{...a,points:star5(cx,cy,r)});if(cat==="identity")return el("circle",{...a,cx,cy,r});if(cat==="policy")return el("rect",{...a,x:cx-r,y:cy-r,width:2*r,height:2*r});return el("polygon",{...a,points:cx+","+(cy-r)+" "+(cx+r)+","+cy+" "+cx+","+(cy+r)+" "+(cx-r)+","+cy});}
+function llines(lbl){if(lbl.length<=9)return[lbl];const w=lbl.split(" ");if(w.length===1)return[lbl.slice(0,9)+"…"];const m=Math.ceil(w.length/2);return[w.slice(0,m).join(" "),w.slice(m).join(" ")];}
+function layout(nodes){
+  const cx=W/2,cy=H/2,pad=90,k=Math.sqrt(W*H/nodes.length)*.75;
+  const nm={};nodes.forEach(n=>{nm[n.label]=n;n.x=cx+(Math.random()-.5)*W*.5;n.y=cy+(Math.random()-.5)*H*.5});
+  for(let it=0;it<350;it++){
+    const tmp=(1-it/350)*(W/7);nodes.forEach(n=>{n.dx=0;n.dy=0});
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const dx=nodes[i].x-nodes[j].x||.01,dy=nodes[i].y-nodes[j].y||.01;
+      const d=Math.sqrt(dx*dx+dy*dy)||.01,f=k*k/d;
+      nodes[i].dx+=dx/d*f;nodes[i].dy+=dy/d*f;nodes[j].dx-=dx/d*f;nodes[j].dy-=dy/d*f;
+    }
+    nodes.forEach(n=>{const p=n.label==="me"?.08:.012;n.dx+=(cx-n.x)*p;n.dy+=(cy-n.y)*p});
+    EDGES.forEach(e=>{const s=nm[e.n1],t=nm[e.n2];if(!s||!t)return;const w=Math.max(e.rtWeightedStrength||e.assocStrength,.01),dx=s.x-t.x,dy=s.y-t.y,d=Math.sqrt(dx*dx+dy*dy)||.01,f=d*d/k*w*1.8;s.dx-=dx/d*f;s.dy-=dy/d*f;t.dx+=dx/d*f;t.dy+=dy/d*f});
+    nodes.forEach(n=>{const d=Math.sqrt(n.dx*n.dx+n.dy*n.dy)||.01;n.x+=n.dx/d*Math.min(d,tmp);n.y+=n.dy/d*Math.min(d,tmp);n.x=Math.max(pad,Math.min(W-pad,n.x));n.y=Math.max(pad,Math.min(H-pad,n.y))});
+  }
+  const me=nodes.find(n=>n.label==="me");if(me){const ox=cx-me.x,oy=cy-me.y;nodes.forEach(n=>{n.x=Math.max(pad,Math.min(W-pad,n.x+ox));n.y=Math.max(pad,Math.min(H-pad,n.y+oy))});}
+}
+const nodes=NODES.map(n=>({...n})),nm={};nodes.forEach(n=>nm[n.label]=n);
+const svg=document.getElementById("svg");svg.setAttribute("width",W);svg.setAttribute("height",H);
+const zg=el("g",{});svg.appendChild(zg);
+const EL=el("g",{}),LL=el("g",{visibility:"hidden"}),NL=el("g",{});
+zg.appendChild(EL);zg.appendChild(LL);zg.appendChild(NL);
+let tx=0,ty=0,sc=1;function az(){zg.setAttribute("transform","translate("+tx+","+ty+") scale("+sc+")");}
+function sid(s){return s.replace(/[^a-zA-Z0-9]/g,"_");}
+function drawEdge(e){
+  const s=nm[e.n1],t=nm[e.n2];if(!s||!t)return;
+  const eid="e_"+sid(e.id||e.n1+"_"+e.n2);
+  let ln=document.getElementById(eid);
+  if(!ln){
+    const w=e.rtWeightedStrength||e.assocStrength;
+    ln=el("line",{id:eid,stroke:e.centeredAssoc>=0?DC.together:DC.apart,"stroke-linecap":"round",
+      "stroke-width":(0.8+w*14).toFixed(1),"stroke-opacity":Math.min(.15+w*1.8,.9).toFixed(2)});
+    EL.appendChild(ln);
+    ln.addEventListener("mouseenter",ev=>showET(e,ev));ln.addEventListener("mouseleave",hideTip);
+    const lid="l_"+sid(e.id||e.n1+"_"+e.n2);
+    const lt=el("text",{id:lid,"font-size":"8","font-family":"sans-serif","fill":"#888",
+      "text-anchor":"middle","dominant-baseline":"middle","pointer-events":"none"});
+    lt.textContent=e.meanAssoc.toFixed(2);LL.appendChild(lt);
+  }
+  ln.setAttribute("x1",s.x.toFixed(1));ln.setAttribute("y1",s.y.toFixed(1));
+  ln.setAttribute("x2",t.x.toFixed(1));ln.setAttribute("y2",t.y.toFixed(1));
+  const lid="l_"+sid(e.id||e.n1+"_"+e.n2),lt=document.getElementById(lid);
+  if(lt){lt.setAttribute("x",((s.x+t.x)/2).toFixed(1));lt.setAttribute("y",((s.y+t.y)/2).toFixed(1));}
+}
+const CAT_C={identity:"#5b8dd9",policy:"#6ac46a",values:"#c97de8"};
+function lc(h1,h2,t){const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];const[r1,g1,b1]=p(h1),[r2,g2,b2]=p(h2);const r=Math.round(r1+(r2-r1)*t),g=Math.round(g1+(g2-g1)*t),b=Math.round(b1+(b2-b1)*t);return"#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");}
+function vc(s){if(s==null)return"#3a4455";const t=Math.max(0,Math.min(1,s));return t<.5?lc("#3a4455","#8b0000",1-t*2):lc("#3a4455","#003580",(t-.5)*2);}
+function drawNode(n){
+  const nid="n_"+sid(n.label);let g=document.getElementById(nid);
+  const r=13+n.strengthNorm*11;
+  if(!g){
+    g=el("g",{id:nid,cursor:"grab"});
+    const fill=vc(n.valenceScore), stroke=CAT_C[n.category]||"#607080";
+    g.appendChild(shape(n.category,0,0,r,fill,stroke,"2.5",n.label));
+    llines(n.label).forEach((txt,i)=>{
+      const t=el("text",{x:"0",y:r+11+i*12,"text-anchor":"middle","font-size":"9",
+        "font-family":"sans-serif","fill":"#ddd","font-weight":"bold","pointer-events":"none"});
+      t.textContent=txt;g.appendChild(t);
+    });
+    NL.appendChild(g);
+    g.addEventListener("mouseenter",ev=>showNT(n,ev));g.addEventListener("mouseleave",hideTip);
+    g.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();
+      drag={node:n,mx:ev.clientX,my:ev.clientY,nx:n.x,ny:n.y};g.style.cursor="grabbing";});
+  }
+  g.setAttribute("transform","translate("+n.x.toFixed(1)+","+n.y.toFixed(1)+")");
+}
+function renderAll(){EDGES.forEach(drawEdge);nodes.forEach(drawNode);}
+function doLayout(){NL.innerHTML="";EL.innerHTML="";LL.innerHTML="";layout(nodes);renderAll();}
+let pan=false,px0,py0,tx0,ty0,drag=null;
+svg.addEventListener("wheel",ev=>{ev.preventDefault();const d=ev.deltaY>0?.85:1/.85;tx=ev.clientX-(ev.clientX-tx)*d;ty=ev.clientY-(ev.clientY-ty)*d;sc=Math.max(.05,Math.min(30,sc*d));az();},{passive:false});
+svg.addEventListener("mousedown",ev=>{if(drag)return;pan=true;px0=ev.clientX;py0=ev.clientY;tx0=tx;ty0=ty;svg.style.cursor="grabbing";});
+window.addEventListener("mousemove",ev=>{
+  if(drag){drag.node.x=drag.nx+(ev.clientX-drag.mx)/sc;drag.node.y=drag.ny+(ev.clientY-drag.my)/sc;drawNode(drag.node);EDGES.forEach(e=>{if(e.n1===drag.node.label||e.n2===drag.node.label)drawEdge(e);});}
+  else if(pan){tx=tx0+(ev.clientX-px0);ty=ty0+(ev.clientY-py0);az();}
+});
+window.addEventListener("mouseup",()=>{if(drag){document.getElementById("n_"+sid(drag.node.label)).style.cursor="grab";drag=null;}pan=false;svg.style.cursor="default";});
+svg.addEventListener("dblclick",resetView);
+function resetView(){tx=0;ty=0;sc=1;az();}
+function setELabels(v){LL.setAttribute("visibility",v?"visible":"hidden");}
+const tip=document.getElementById("tooltip");
+function pos(ev){const x=ev.clientX+14,y=ev.clientY-10;tip.style.left=(x+tip.offsetWidth>W?x-tip.offsetWidth-28:x)+"px";tip.style.top=(y+tip.offsetHeight>H?y-tip.offsetHeight:y)+"px";}
+function showNT(n,ev){const vc_lbl=n.valenceScore!=null?((n.valenceScore>.55?"<span style='color:#4a90d9'>positive</span>":n.valenceScore<.45?"<span style='color:#c0392b'>negative</span>":"<span style='color:#888'>neutral</span>")+" ("+n.meanPropGood.toFixed(2)+" prop good)"):"<span style='color:#555'>no B1 data</span>";tip.innerHTML="<strong style='color:#ddd'>"+n.label+"</strong><br>Category: <span style='color:#aaa'>"+n.category+"</span><br>Valence: "+vc_lbl+"<br>Strength: <span style='color:#aaa'>"+n.strengthNorm.toFixed(3)+"</span><br>Eigenvector: <span style='color:#aaa'>"+n.eigen.toFixed(3)+"</span>";tip.style.display="block";pos(ev);}
+function showET(e,ev){const d=e.centeredAssoc>=0?"go together":"do not go together",c=e.centeredAssoc>=0?DC.together:DC.apart,rt=e.meanRT?e.meanRT+"ms":"—";tip.innerHTML="<strong style='color:#ddd'>"+e.n1+"</strong> &amp; <strong style='color:#ddd'>"+e.n2+"</strong><br><span style='color:"+c+"'>"+d+"</span><br>prop_together: <span style='color:#aaa'>"+e.meanAssoc.toFixed(3)+"</span><br>Strength: <span style='color:#aaa'>"+e.assocStrength.toFixed(3)+"</span><br>Mean RT: <span style='color:#aaa'>"+rt+"</span><br>N participants: <span style='color:#aaa'>"+e.nPart+"</span>";tip.style.display="block";pos(ev);}
+function hideTip(){tip.style.display="none";}
+document.addEventListener("mousemove",ev=>{if(tip.style.display!=="none")pos(ev);});
+doLayout();
+<\/script></body></html>`;
+}
+
+function openInteractiveNetwork(nodes, edges, title) {
+  const html = generateInteractiveHTML(nodes, edges, title);
+  const w = window.open("", "_blank");
+  if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+  else { alert("Popup blocked — please allow popups for this page and try again."); }
+}
+
+/* ── Stretch valence scores to use full [0,1] range within a node set ── */
+function normalizeValences(nodes) {
+  const scored = nodes.filter(n => n.valenceScore != null);
+  if (scored.length < 2) return;
+  const mn = Math.min(...scored.map(n => n.valenceScore));
+  const mx = Math.max(...scored.map(n => n.valenceScore));
+  const range = mx - mn || 1;
+  scored.forEach(n => { n.valenceScore = (n.valenceScore - mn) / range; });
+}
+
+/* ── Build camp data (nodes + edges with centrality + valence) ── */
+function buildCampData(camp, nodeValences) {
+  let b2rows;
+  if (camp === "All") {
+    b2rows = _b2Sum;
+  } else {
+    const pids = new Set(_b2Sum.filter(r => CAMP_MAP[r.participant_type] === camp).map(r => r.participant_id));
+    b2rows = _b2Sum.filter(r => pids.has(r.participant_id));
+  }
+  const nodeData = getNodesFromEdges(b2rows);
+  const edgeData = aggB2(b2rows);
+  if (!edgeData.length) return null;
+  const active = new Set(edgeData.flatMap(e=>[e.n1,e.n2]));
+  const nodes = nodeData.filter(n=>active.has(n.label));
+  computeCentrality(nodes, edgeData);
+  /* Attach valence scores */
+  nodes.forEach(n => {
+    const v = nodeValences[n.label];
+    n.valenceScore = v ? v.valenceScore : null;
+    n.meanPropGood = v ? v.meanPropGood : null;
+  });
+  /* Stretch to full color range within this camp */
+  normalizeValences(nodes);
+  return { nodes, edges: edgeData };
+}
+
+/* ── Set up camp tab click handlers ── */
+function setupCampTabs(tabsId, onChange) {
+  document.querySelectorAll(`#${tabsId} .camp-tab`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(`#${tabsId} .camp-tab`).forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      onChange(btn.dataset.camp);
+    });
+  });
+}
+
 /* ── Main entry point ── */
 function runAnalysis() {
   document.getElementById("viz-nav").style.display = "flex";
   setupToggles();
 
-  const nodeData = aggB1(_b1Sum);
-  const edgeData = aggB2(_b2Sum);
-  const active   = new Set(edgeData.flatMap(e=>[e.n1,e.n2]));
-  const activeNodes = nodeData.filter(n=>active.has(n.label));
+  // Compute per-node RT-weighted valence from B1 data
+  const nodeValences = computeNodeValences(_b1Sum);
 
-  computeCentrality(activeNodes, edgeData);
-  renderNetwork(activeNodes, edgeData);
-  renderValenceChart(nodeData);
-  renderMeChart(edgeData, nodeData);
-  renderGroupNetworks();
-  renderCentralityTable(activeNodes);
+  // Precompute all camp data
+  const campData = {};
+  ["All","Liberal","Centrist","Conservative"].forEach(c => { campData[c] = buildCampData(c, nodeValences); });
+
+  // ── Network section ──
+  const networkBtn = document.getElementById("open-network-btn");
+  let _networkCamp = "All";
+  function updateNetworkBtn() {
+    const d = campData[_networkCamp];
+    networkBtn.textContent = d
+      ? `↗ Open Interactive${_networkCamp === "All" ? "" : " — " + _networkCamp}`
+      : `No data for ${_networkCamp}`;
+    networkBtn.disabled = !d;
+    networkBtn.onclick = d
+      ? () => openInteractiveNetwork(d.nodes, d.edges,
+          (_networkCamp === "All" ? "All" : _networkCamp) + " Belief Network")
+      : null;
+  }
+  updateNetworkBtn();
+  setupCampTabs("network-tabs", camp => { _networkCamp = camp; updateNetworkBtn(); });
+
+  // ── Me Connections section ──
+  function updateMe(camp) {
+    const d = campData[camp];
+    if (d) renderMeChart(d.edges, d.nodes);
+    else document.getElementById("viz-me").innerHTML =
+      `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
+  }
+  updateMe("All");
+  setupCampTabs("me-tabs", updateMe);
+
+  // ── Centrality section ──
+  function updateCentrality(camp) {
+    const d = campData[camp];
+    if (d) renderCentralityTable(d.nodes);
+    else document.getElementById("viz-centrality").innerHTML =
+      `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
+  }
+  updateCentrality("All");
+  setupCampTabs("centrality-tabs", updateCentrality);
 }
 </script>
 </body>
