@@ -1801,7 +1801,7 @@ commIds.forEach(c=>{
 let _nmMode = "network";   /* "network" | "community" */
 let _nmNodes = [], _nmEdges = [], _nmNm = {};
 let _nmVisComms = new Set();
-let _nmCampRef = null, _nmCamp = "All";
+let _nmCampRef = null, _nmCamp = "All", _nmKnow = "All", _nmCampRefBuilder = null;
 let _nmTx = 0, _nmTy = 0, _nmSc = 1;
 let _nmDrag = null, _nmPan = false;
 let _nmPx0 = 0, _nmPy0 = 0, _nmTx0 = 0, _nmTy0 = 0;
@@ -2044,6 +2044,24 @@ function nmSetupCampTabs(initCamp){
     tabs.appendChild(btn);
   });
 }
+function nmSetupKnowTabs(initKnow){
+  const tabs=document.getElementById("nm-know-tabs");
+  tabs.innerHTML="";
+  ["All","High","Medium","Low"].forEach(know=>{
+    const btn=document.createElement("button");
+    btn.className="camp-tab"+(know===initKnow?" active":"");
+    btn.dataset.know=know;
+    btn.textContent=know;
+    btn.onclick=()=>{
+      tabs.querySelectorAll(".camp-tab").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      _nmKnow=know;
+      _nmCampRef=_nmCampRefBuilder(know);
+      nmLoadCamp(_nmCamp);
+    };
+    tabs.appendChild(btn);
+  });
+}
 
 /* Load a camp's data into the modal and (re)render */
 function nmLoadCamp(camp){
@@ -2079,11 +2097,14 @@ function nmLoadCamp(camp){
 }
 
 /* Open modal */
-function openNetModal(mode,campRef,initCamp){
-  _nmMode=mode;_nmCampRef=campRef;_nmCamp=initCamp;
+function openNetModal(mode,campRefBuilder,initKnow,initCamp){
+  _nmMode=mode;_nmCampRefBuilder=campRefBuilder;
+  _nmKnow=initKnow||"All";_nmCampRef=campRefBuilder(_nmKnow);
+  _nmCamp=initCamp||"All";
   const overlay=document.getElementById("net-modal");
   overlay.classList.add("open");
-  nmSetupCampTabs(initCamp);
+  nmSetupCampTabs(_nmCamp);
+  nmSetupKnowTabs(_nmKnow);
   /* Init SVG once the modal is painted */
   requestAnimationFrame(()=>{
     const body=document.getElementById("net-modal-body");
@@ -2556,7 +2577,7 @@ function runAnalysis() {
       ? `↗ Open Interactive${suffix ? " — " + suffix : ""}`
       : `No data for this selection`;
     networkBtn.disabled = !d;
-    networkBtn.onclick = d ? () => openNetModal("network", buildCampRef(_networkKnow), _networkCamp) : null;
+    networkBtn.onclick = d ? () => openNetModal("network", buildCampRef, _networkKnow, _networkCamp) : null;
   }
   updateNetworkBtn();
   setupCampTabs("network-tabs", camp => { _networkCamp = camp; updateNetworkBtn(); });
@@ -2601,7 +2622,7 @@ function runAnalysis() {
     leidenBtn.disabled = false;
     const suffix = [_leidenCamp !== "All" ? _leidenCamp : null, _leidenKnow !== "All" ? _leidenKnow : null].filter(Boolean).join(" · ");
     leidenBtn.textContent = `↗ Open Community Network${suffix ? " — " + suffix : ""}`;
-    leidenBtn.onclick = () => openNetModal("community", buildCampRef(_leidenKnow), _leidenCamp);
+    leidenBtn.onclick = () => openNetModal("community", buildCampRef, _leidenKnow, _leidenCamp);
     _sweepResults.forEach((_, j) => {
       const tr = document.getElementById("sweep-row-" + j);
       if (tr) tr.style.background = j === i ? "#1a2535" : "";
@@ -2625,7 +2646,7 @@ function runAnalysis() {
     sweepBtn.disabled = false;
     const suffix = [_leidenCamp !== "All" ? _leidenCamp : null, _leidenKnow !== "All" ? _leidenKnow : null].filter(Boolean).join(" · ");
     leidenBtn.textContent = `↗ Open Community Network${suffix ? " — " + suffix : ""}`;
-    leidenBtn.onclick = () => openNetModal("community", buildCampRef(_leidenKnow), _leidenCamp);
+    leidenBtn.onclick = () => openNetModal("community", buildCampRef, _leidenKnow, _leidenCamp);
     sweepBtn.textContent = "⊕ Find optimal community count";
     sweepBtn.onclick = () => {
       sweepBtn.disabled = true;
@@ -2696,6 +2717,7 @@ function runAnalysis() {
           <span id="nm-subtitle"></span>
         </div>
         <div id="nm-camp-tabs" class="camp-tabs"></div>
+        <div id="nm-know-tabs" class="know-tabs" style="margin-top:-4px"></div>
         <div id="nm-comm-row"></div>
       </div>
       <button id="nm-close-btn" onclick="closeNetModal()" title="Close (Esc)">✕</button>
