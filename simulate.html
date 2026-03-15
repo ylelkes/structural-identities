@@ -174,6 +174,25 @@
     font-size: 10px; background: #1a2535; white-space: nowrap; font-family: inherit;
   }
   .nm-comm-btn.off { opacity: 0.3; }
+
+  /* ── Knowledge tabs ── */
+  .know-tabs { display: flex; gap: 6px; margin: 0 0 10px; align-items: center; }
+  .know-label { color: #444; font-size: 0.72rem; margin-right: 4px; flex-shrink: 0; }
+  .camp-tab[data-know="High"].active   { background: #2a2010; color: #e8a030; border-color: #e8a030; }
+  .camp-tab[data-know="Medium"].active { background: #1a2a1a; color: #5a9;    border-color: #2a6; }
+  .camp-tab[data-know="Low"].active    { background: #1a1a28; color: #7a8ac0; border-color: #4a5a90; }
+
+  /* ── Table Modal ── */
+  #tbl-modal { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.88); align-items:center; justify-content:center; }
+  #tbl-modal.open { display:flex; }
+  #tbl-modal-box { width:88vw; max-height:88vh; background:#0d1117; border:1px solid #2a2a2a; border-radius:8px; display:flex; flex-direction:column; overflow:hidden; }
+  #tbl-modal-hdr { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid #1e1e1e; background:#111; flex-shrink:0; }
+  #tm-hdr-left { flex:1; display:flex; flex-direction:column; gap:6px; }
+  #tm-title { color:#e8a030; font-weight:bold; font-size:0.88rem; }
+  #tm-filter-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  #tbl-close-btn { background:none; border:none; color:#555; font-size:1.3rem; cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0; margin-top:2px; }
+  #tbl-close-btn:hover { color:#ccc; }
+  #tbl-modal-body { flex:1; overflow-y:auto; padding:16px; font-size:0.82rem; }
 </style>
 </head>
 <body>
@@ -185,13 +204,13 @@
   <strong style="color:#e8a030;">About the simulated participants</strong><br>
   This simulator uses 30 hand-crafted profiles representing a cross-section of American political types —
   strong progressives, union Democrats, libertarians, moderate Republicans, MAGA voters, and more.
-  Each profile has a mean reaction time, a variability parameter, and a set of underlying valence scores
-  (how positively or negatively they evaluate each concept) derived from type-level political psychology research.
-  Individual responses are sampled probabilistically: valence determines whether a node is rated "good" or "bad"
-  and whether a pair is rated "together" or "apart"; within-person RT noise is drawn from a log-normal distribution.
+  Each profile has a mean reaction time, a variability parameter, a <strong style="color:#c0c0c0;">political knowledge level</strong>
+  (High / Medium / Low), and underlying valence scores derived from type-level political psychology research.
+  High-knowledge participants respond more consistently with their ideological priors; low-knowledge participants
+  add more noise. Individual responses are sampled probabilistically; within-person RT noise is drawn from a log-normal distribution.
   When you request more participants than 30, profiles are cycled and re-indexed.<br><br>
   <strong style="color:#e8a030;">After running:</strong> Download the CSV files, then scroll down to explore
-  the interactive belief network, self-concept connections, and centrality scores.
+  the interactive belief network, self-concept connections, centrality scores, and filterable results tables.
   <a href="index.html" style="color:#5a9;text-decoration:none;margin-left:8px;">← Back to home</a>
 </div>
 
@@ -237,6 +256,13 @@
       <button class="camp-tab" data-camp="Centrist">Centrist</button>
       <button class="camp-tab" data-camp="Conservative">Conservative</button>
     </div>
+    <div class="know-tabs" id="network-know-tabs">
+      <span class="know-label">Knowledge:</span>
+      <button class="camp-tab active" data-know="All">All</button>
+      <button class="camp-tab" data-know="High">High</button>
+      <button class="camp-tab" data-know="Medium">Medium</button>
+      <button class="camp-tab" data-know="Low">Low</button>
+    </div>
     <button id="open-network-btn" class="open-btn">↗ Open Interactive</button>
   </div>
 </div>
@@ -250,6 +276,13 @@
       <button class="camp-tab" data-camp="Liberal">Liberal</button>
       <button class="camp-tab" data-camp="Centrist">Centrist</button>
       <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
+    <div class="know-tabs" id="me-know-tabs">
+      <span class="know-label">Knowledge:</span>
+      <button class="camp-tab active" data-know="All">All</button>
+      <button class="camp-tab" data-know="High">High</button>
+      <button class="camp-tab" data-know="Medium">Medium</button>
+      <button class="camp-tab" data-know="Low">Low</button>
     </div>
     <div id="viz-me"></div>
   </div>
@@ -265,6 +298,13 @@
       <button class="camp-tab" data-camp="Centrist">Centrist</button>
       <button class="camp-tab" data-camp="Conservative">Conservative</button>
     </div>
+    <div class="know-tabs" id="centrality-know-tabs">
+      <span class="know-label">Knowledge:</span>
+      <button class="camp-tab active" data-know="All">All</button>
+      <button class="camp-tab" data-know="High">High</button>
+      <button class="camp-tab" data-know="Medium">Medium</button>
+      <button class="camp-tab" data-know="Low">Low</button>
+    </div>
     <div id="viz-centrality"></div>
   </div>
 </div>
@@ -278,6 +318,13 @@
       <button class="camp-tab" data-camp="Liberal">Liberal</button>
       <button class="camp-tab" data-camp="Centrist">Centrist</button>
       <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
+    <div class="know-tabs" id="leiden-know-tabs">
+      <span class="know-label">Knowledge:</span>
+      <button class="camp-tab active" data-know="All">All</button>
+      <button class="camp-tab" data-know="High">High</button>
+      <button class="camp-tab" data-know="Medium">Medium</button>
+      <button class="camp-tab" data-know="Low">Low</button>
     </div>
     <button id="sweep-leiden-btn" class="open-btn" style="margin-bottom:8px;background:#1a1a1a;border-color:#2a3a5a;color:#9ab">⊕ Find optimal community count</button>
     <div id="leiden-sweep-results" style="margin-bottom:16px"></div>
@@ -467,41 +514,41 @@ const TYPE_MAP = {
 ================================================================ */
 const PROFILES = [
   /* Strong progressives */
-  { id:"P001", firstName:"Emma",     age:23, gender:"F", type:"strong_progressive",        rtMean:550, rtSD:130, timeoutRate:0.02 },
-  { id:"P002", firstName:"Jaylen",   age:27, gender:"M", type:"strong_progressive",        rtMean:580, rtSD:140, timeoutRate:0.02 },
-  { id:"P003", firstName:"Sofia",    age:31, gender:"F", type:"strong_progressive",        rtMean:600, rtSD:160, timeoutRate:0.03 },
-  { id:"P004", firstName:"Marcus",   age:45, gender:"M", type:"strong_progressive",        rtMean:620, rtSD:150, timeoutRate:0.02 },
-  { id:"P005", firstName:"Aisha",    age:52, gender:"F", type:"strong_progressive",        rtMean:650, rtSD:170, timeoutRate:0.03 },
+  { id:"P001", firstName:"Emma",     age:23, gender:"F", type:"strong_progressive",        rtMean:550, rtSD:130, timeoutRate:0.02, knowledge:"High" },
+  { id:"P002", firstName:"Jaylen",   age:27, gender:"M", type:"strong_progressive",        rtMean:580, rtSD:140, timeoutRate:0.02, knowledge:"High" },
+  { id:"P003", firstName:"Sofia",    age:31, gender:"F", type:"strong_progressive",        rtMean:600, rtSD:160, timeoutRate:0.03, knowledge:"Medium" },
+  { id:"P004", firstName:"Marcus",   age:45, gender:"M", type:"strong_progressive",        rtMean:620, rtSD:150, timeoutRate:0.02, knowledge:"High" },
+  { id:"P005", firstName:"Aisha",    age:52, gender:"F", type:"strong_progressive",        rtMean:650, rtSD:170, timeoutRate:0.03, knowledge:"Medium" },
   /* Moderate Democrats */
-  { id:"P006", firstName:"Karen",    age:38, gender:"F", type:"moderate_democrat",         rtMean:700, rtSD:180, timeoutRate:0.04 },
-  { id:"P007", firstName:"DeShawn",  age:34, gender:"M", type:"moderate_democrat",         rtMean:720, rtSD:190, timeoutRate:0.04 },
-  { id:"P008", firstName:"Linda",    age:58, gender:"F", type:"moderate_democrat",         rtMean:750, rtSD:200, timeoutRate:0.05 },
-  { id:"P009", firstName:"Carlos",   age:29, gender:"M", type:"moderate_democrat",         rtMean:650, rtSD:160, timeoutRate:0.03 },
-  { id:"P010", firstName:"Priya",    age:41, gender:"F", type:"moderate_democrat",         rtMean:680, rtSD:175, timeoutRate:0.03 },
-  { id:"P011", firstName:"Robert",   age:62, gender:"M", type:"union_democrat",            rtMean:780, rtSD:200, timeoutRate:0.06 },
+  { id:"P006", firstName:"Karen",    age:38, gender:"F", type:"moderate_democrat",         rtMean:700, rtSD:180, timeoutRate:0.04, knowledge:"Medium" },
+  { id:"P007", firstName:"DeShawn",  age:34, gender:"M", type:"moderate_democrat",         rtMean:720, rtSD:190, timeoutRate:0.04, knowledge:"Medium" },
+  { id:"P008", firstName:"Linda",    age:58, gender:"F", type:"moderate_democrat",         rtMean:750, rtSD:200, timeoutRate:0.05, knowledge:"Low" },
+  { id:"P009", firstName:"Carlos",   age:29, gender:"M", type:"moderate_democrat",         rtMean:650, rtSD:160, timeoutRate:0.03, knowledge:"Medium" },
+  { id:"P010", firstName:"Priya",    age:41, gender:"F", type:"moderate_democrat",         rtMean:680, rtSD:175, timeoutRate:0.03, knowledge:"High" },
+  { id:"P011", firstName:"Robert",   age:62, gender:"M", type:"union_democrat",            rtMean:780, rtSD:200, timeoutRate:0.06, knowledge:"Medium" },
   /* Independents / centrists */
-  { id:"P012", firstName:"Jennifer", age:36, gender:"F", type:"centrist_independent",      rtMean:800, rtSD:210, timeoutRate:0.06 },
-  { id:"P013", firstName:"Tyler",    age:28, gender:"M", type:"libertarian",               rtMean:620, rtSD:150, timeoutRate:0.02 },
-  { id:"P014", firstName:"Donna",    age:55, gender:"F", type:"centrist_independent",      rtMean:850, rtSD:220, timeoutRate:0.07 },
-  { id:"P015", firstName:"Ahmad",    age:33, gender:"M", type:"centrist_independent",      rtMean:720, rtSD:185, timeoutRate:0.04 },
-  { id:"P016", firstName:"Nancy",    age:67, gender:"F", type:"centrist_independent",      rtMean:900, rtSD:230, timeoutRate:0.08 },
+  { id:"P012", firstName:"Jennifer", age:36, gender:"F", type:"centrist_independent",      rtMean:800, rtSD:210, timeoutRate:0.06, knowledge:"Low" },
+  { id:"P013", firstName:"Tyler",    age:28, gender:"M", type:"libertarian",               rtMean:620, rtSD:150, timeoutRate:0.02, knowledge:"High" },
+  { id:"P014", firstName:"Donna",    age:55, gender:"F", type:"centrist_independent",      rtMean:850, rtSD:220, timeoutRate:0.07, knowledge:"Low" },
+  { id:"P015", firstName:"Ahmad",    age:33, gender:"M", type:"centrist_independent",      rtMean:720, rtSD:185, timeoutRate:0.04, knowledge:"Medium" },
+  { id:"P016", firstName:"Nancy",    age:67, gender:"F", type:"centrist_independent",      rtMean:900, rtSD:230, timeoutRate:0.08, knowledge:"Low" },
   /* Moderate Republicans */
-  { id:"P017", firstName:"Brad",     age:44, gender:"M", type:"moderate_republican",       rtMean:600, rtSD:155, timeoutRate:0.03 },
-  { id:"P018", firstName:"Michelle", age:39, gender:"F", type:"suburban_republican",       rtMean:640, rtSD:165, timeoutRate:0.03 },
-  { id:"P019", firstName:"Greg",     age:53, gender:"M", type:"business_republican",       rtMean:580, rtSD:145, timeoutRate:0.02 },
-  { id:"P020", firstName:"Patricia", age:60, gender:"F", type:"moderate_republican",       rtMean:680, rtSD:180, timeoutRate:0.04 },
-  { id:"P021", firstName:"Kevin",    age:35, gender:"M", type:"moderate_republican",       rtMean:610, rtSD:155, timeoutRate:0.03 },
-  { id:"P022", firstName:"Heather",  age:48, gender:"F", type:"never_trump_republican",    rtMean:720, rtSD:190, timeoutRate:0.05 },
+  { id:"P017", firstName:"Brad",     age:44, gender:"M", type:"moderate_republican",       rtMean:600, rtSD:155, timeoutRate:0.03, knowledge:"Medium" },
+  { id:"P018", firstName:"Michelle", age:39, gender:"F", type:"suburban_republican",       rtMean:640, rtSD:165, timeoutRate:0.03, knowledge:"Medium" },
+  { id:"P019", firstName:"Greg",     age:53, gender:"M", type:"business_republican",       rtMean:580, rtSD:145, timeoutRate:0.02, knowledge:"High" },
+  { id:"P020", firstName:"Patricia", age:60, gender:"F", type:"moderate_republican",       rtMean:680, rtSD:180, timeoutRate:0.04, knowledge:"Low" },
+  { id:"P021", firstName:"Kevin",    age:35, gender:"M", type:"moderate_republican",       rtMean:610, rtSD:155, timeoutRate:0.03, knowledge:"Medium" },
+  { id:"P022", firstName:"Heather",  age:48, gender:"F", type:"never_trump_republican",    rtMean:720, rtSD:190, timeoutRate:0.05, knowledge:"High" },
   /* Conservative / MAGA Republicans */
-  { id:"P023", firstName:"Dale",     age:57, gender:"M", type:"conservative_republican",   rtMean:540, rtSD:130, timeoutRate:0.02 },
-  { id:"P024", firstName:"Brenda",   age:52, gender:"F", type:"evangelical_republican",    rtMean:560, rtSD:135, timeoutRate:0.02 },
-  { id:"P025", firstName:"Randy",    age:43, gender:"M", type:"maga_republican",           rtMean:510, rtSD:120, timeoutRate:0.01 },
-  { id:"P026", firstName:"Sharon",   age:61, gender:"F", type:"conservative_republican",   rtMean:580, rtSD:140, timeoutRate:0.02 },
-  { id:"P027", firstName:"Wayne",    age:49, gender:"M", type:"gun_rights_voter",          rtMean:530, rtSD:125, timeoutRate:0.01 },
-  { id:"P028", firstName:"Tammy",    age:38, gender:"F", type:"maga_republican",           rtMean:520, rtSD:122, timeoutRate:0.01 },
+  { id:"P023", firstName:"Dale",     age:57, gender:"M", type:"conservative_republican",   rtMean:540, rtSD:130, timeoutRate:0.02, knowledge:"Medium" },
+  { id:"P024", firstName:"Brenda",   age:52, gender:"F", type:"evangelical_republican",    rtMean:560, rtSD:135, timeoutRate:0.02, knowledge:"Medium" },
+  { id:"P025", firstName:"Randy",    age:43, gender:"M", type:"maga_republican",           rtMean:510, rtSD:120, timeoutRate:0.01, knowledge:"Low" },
+  { id:"P026", firstName:"Sharon",   age:61, gender:"F", type:"conservative_republican",   rtMean:580, rtSD:140, timeoutRate:0.02, knowledge:"Low" },
+  { id:"P027", firstName:"Wayne",    age:49, gender:"M", type:"gun_rights_voter",          rtMean:530, rtSD:125, timeoutRate:0.01, knowledge:"Low" },
+  { id:"P028", firstName:"Tammy",    age:38, gender:"F", type:"maga_republican",           rtMean:520, rtSD:122, timeoutRate:0.01, knowledge:"Low" },
   /* Special profiles */
-  { id:"P029", firstName:"Denise",   age:44, gender:"F", type:"economic_populist",         rtMean:760, rtSD:195, timeoutRate:0.05 },
-  { id:"P030", firstName:"James",    age:70, gender:"M", type:"older_moderate",            rtMean:950, rtSD:240, timeoutRate:0.09 }
+  { id:"P029", firstName:"Denise",   age:44, gender:"F", type:"economic_populist",         rtMean:760, rtSD:195, timeoutRate:0.05, knowledge:"Medium" },
+  { id:"P030", firstName:"James",    age:70, gender:"M", type:"older_moderate",            rtMean:950, rtSD:240, timeoutRate:0.09, knowledge:"Low" }
 ];
 
 /* ================================================================
@@ -664,8 +711,9 @@ function setupParticipant(profile) {
   const baseType     = TYPE_MAP[profile.type] || "centrist";
   const baseValences = TYPE_VALENCES[baseType];
   const resolvedB1   = {};
+  const noiseSD = { High: 0.04, Medium: 0.08, Low: 0.14 }[profile.knowledge] || 0.08;
   for (const [label, v] of Object.entries(baseValences)) {
-    resolvedB1[label] = Math.min(0.98, Math.max(0.02, v + 0.08 * randn()));
+    resolvedB1[label] = Math.min(0.98, Math.max(0.02, v + noiseSD * randn()));
   }
 
   /* Random node selection: alwaysInclude nodes first, then random sample */
@@ -788,7 +836,8 @@ function runParticipant(profile) {
     const rk        = rl ? ctx.b1M[rl] : null;
     rows.push({
       participant_id: profile.id, first_name: profile.firstName,
-      participant_type: profile.type, experiment_version: CONFIG.experimentVersion,
+      participant_type: profile.type, participant_knowledge: profile.knowledge,
+      experiment_version: CONFIG.experimentVersion,
       block_name: "block1", subblock_number: t.subBlock, trial_index: t.trialIndex,
       task_type: "evaluation", mapping_condition: ctx.b1C,
       trial_start_timestamp: now(), rt_ms: rt, timeout: timedOut ? 1 : 0,
@@ -816,7 +865,8 @@ function runParticipant(profile) {
     const [nL, nR]  = flip ? [pair.node2, pair.node1] : [pair.node1, pair.node2];
     rows.push({
       participant_id: profile.id, first_name: profile.firstName,
-      participant_type: profile.type, experiment_version: CONFIG.experimentVersion,
+      participant_type: profile.type, participant_knowledge: profile.knowledge,
+      experiment_version: CONFIG.experimentVersion,
       block_name: "block2", subblock_number: t.subBlock, trial_index: t.trialIndex,
       task_type: "pairwise", mapping_condition: ctx.b2C,
       trial_start_timestamp: now(), rt_ms: rt, timeout: timedOut ? 1 : 0,
@@ -855,6 +905,7 @@ function b2Summary(rows, nodeMap) {
     const mrt = median(gr.filter(r=>!r.timeout).map(r=>r.rt_ms));
     return {
       participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
+      participant_knowledge: gr[0].participant_knowledge,
       pair_id: pid, node1_label: n1, node2_label: n2,
       node1_category: (nodeMap[n1]||{}).category||"",
       node2_category: (nodeMap[n2]||{}).category||"",
@@ -894,6 +945,7 @@ function b1Summary(rows) {
     const pmed = personMedB1[gr[0].participant_id] || 1000;
     return {
       participant_id: gr[0].participant_id, participant_type: gr[0].participant_type,
+      participant_knowledge: gr[0].participant_knowledge,
       target_label: gr[0].target_label, target_category: gr[0].target_category,
       target_subcategory: gr[0].target_subcategory || null,
       n_trials: n, n_good: good.length, n_bad: bad.length,
@@ -1001,61 +1053,18 @@ function runSimulation() {
 ================================================================ */
 
 function buildSummaryTable(b1, b2) {
-  const bar = (v, len=12) => {
-    const n = Math.round(v * len);
-    return "█".repeat(n) + "░".repeat(len - n);
-  };
-
-  let html = `<div class="hdr" style="margin-bottom:12px;color:#e8a030;">
-    Aggregate results (means across all participants)
-  </div>`;
-
-  /* ── Block 1: valence summary ── */
-  if (b1.length) {
-    const b1Agg = {};
-    for (const r of b1) {
-      if (!b1Agg[r.target_label]) b1Agg[r.target_label] = { cat: r.target_category, sub: r.target_subcategory, vals: [], rts: [] };
-      if (r.prop_good != null) b1Agg[r.target_label].vals.push(r.prop_good);
-      if (r.median_rt_all != null) b1Agg[r.target_label].rts.push(r.median_rt_all);
-    }
-    const b1Sorted = Object.entries(b1Agg).sort((a,b) => {
-      const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
-      const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
-      return mb - ma;
-    });
-    html += `<div style="color:#e8a030;margin:18px 0 6px;font-size:0.8rem;">Block 1 — Valence (mean prop_good per node)</div>`;
-    html += `<table><tr><th>Node</th><th>Category</th><th>N participants</th><th>Mean prop_good</th><th>Bar</th></tr>`;
-    for (const [lbl, d] of b1Sorted) {
-      const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
-      const col = m >= 0.5 ? "#27ae60" : "#e67e22";
-      html += `<tr><td>${lbl}</td><td>${d.sub ? d.sub : d.cat}</td><td>${d.vals.length}</td><td style="color:${col}">${m.toFixed(2)}</td><td style="color:${col};letter-spacing:-1px">${bar(m)}</td></tr>`;
-    }
-    html += `</table>`;
-  }
-
-  /* ── Block 2: association summary ── */
-  const b2Agg = {};
-  for (const r of b2) {
-    if (!b2Agg[r.pair_id]) b2Agg[r.pair_id] = { n1: r.node1_label, n2: r.node2_label, vals: [] };
-    if (r.prop_together != null) b2Agg[r.pair_id].vals.push(r.prop_together);
-  }
-  html += `<div style="color:#5a9;margin:18px 0 6px;font-size:0.8rem;">Block 2 — Association (mean prop_together per pair, top 30 sorted)</div>`;
-  html += `<table><tr><th>Node 1</th><th>Node 2</th><th>N participants</th><th>Mean prop_together</th><th>Bar</th></tr>`;
-  const b2Sorted = Object.entries(b2Agg)
-    .sort((a,b) => {
-      const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
-      const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
-      return mb - ma;
-    })
-    .slice(0, 30);
-  for (const [pid, d] of b2Sorted) {
-    const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
-    html += `<tr><td>${d.n1}</td><td>${d.n2}</td><td>${d.vals.length}</td><td>${m.toFixed(2)}</td><td style="color:#5a9;letter-spacing:-1px">${bar(m)}</td></tr>`;
-  }
-  html += `</table>`;
-
+  const nPart  = new Set(b1.map(r => r.participant_id)).size;
+  const nNodes = new Set(b1.map(r => r.target_label)).size;
+  const nPairs = new Set(_b2Sum.map(r => r.pair_id)).size;
   const box = document.getElementById("summary-box");
-  box.innerHTML = html;
+  box.innerHTML = `
+    <div class="hdr" style="margin-bottom:8px;color:#e8a030;">Aggregate results</div>
+    <div style="color:#666;font-size:0.8rem;margin-bottom:12px">
+      ${nPart} participants &nbsp;·&nbsp; ${nNodes} unique nodes &nbsp;·&nbsp; ${nPairs} unique pairs
+    </div>
+    <button class="open-btn" onclick="openTblModal()">↗ Open interactive results table</button>
+    <span style="color:#555;font-size:0.75rem;margin-left:10px">Filter by ideology &amp; knowledge level</span>
+  `;
   box.classList.add("visible");
 }
 
@@ -2106,6 +2115,143 @@ function closeNetModal(){
   nmHideTip();
 }
 
+/* ── Table Results Modal ── */
+let _tmCamp = "All", _tmKnow = "All";
+let _tmEscKey = null;
+
+function openTblModal() {
+  if (!_b1Sum || !_b1Sum.length) return;
+  document.getElementById("tbl-modal").classList.add("open");
+  _setupTblTabs();
+  _renderTblModal();
+  _tmEscKey = e => { if (e.key === "Escape") closeTblModal(); };
+  document.addEventListener("keydown", _tmEscKey);
+}
+
+function closeTblModal() {
+  document.getElementById("tbl-modal").classList.remove("open");
+  if (_tmEscKey) { document.removeEventListener("keydown", _tmEscKey); _tmEscKey = null; }
+}
+
+function _setupTblTabs() {
+  /* Ideology tabs */
+  const cTabsEl = document.getElementById("tm-camp-tabs");
+  cTabsEl.innerHTML = "";
+  ["All","Liberal","Centrist","Conservative"].forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "camp-tab" + (c === _tmCamp ? " active" : "");
+    btn.style.cssText = "font-size:0.72rem;padding:3px 10px;";
+    if (c !== "All") btn.dataset.camp = c;
+    btn.textContent = c;
+    btn.onclick = () => {
+      cTabsEl.querySelectorAll(".camp-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      _tmCamp = c;
+      _renderTblModal();
+    };
+    cTabsEl.appendChild(btn);
+  });
+  /* Knowledge tabs */
+  const kTabsEl = document.getElementById("tm-know-tabs");
+  kTabsEl.innerHTML = "";
+  ["All","High","Medium","Low"].forEach(k => {
+    const btn = document.createElement("button");
+    btn.className = "camp-tab" + (k === _tmKnow ? " active" : "");
+    btn.style.cssText = "font-size:0.72rem;padding:3px 10px;";
+    btn.dataset.know = k;
+    btn.textContent = k;
+    btn.onclick = () => {
+      kTabsEl.querySelectorAll(".camp-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      _tmKnow = k;
+      _renderTblModal();
+    };
+    kTabsEl.appendChild(btn);
+  });
+}
+
+function _renderTblModal() {
+  let b1 = _b1Sum, b2 = _b2Sum;
+  if (_tmCamp !== "All") {
+    b1 = b1.filter(r => CAMP_MAP[r.participant_type] === _tmCamp);
+    b2 = b2.filter(r => CAMP_MAP[r.participant_type] === _tmCamp);
+  }
+  if (_tmKnow !== "All") {
+    b1 = b1.filter(r => r.participant_knowledge === _tmKnow);
+    b2 = b2.filter(r => r.participant_knowledge === _tmKnow);
+  }
+  const body = document.getElementById("tbl-modal-body");
+  const nPart = new Set(b1.map(r => r.participant_id)).size;
+  const label = [
+    _tmCamp !== "All" ? _tmCamp : null,
+    _tmKnow !== "All" ? _tmKnow + " knowledge" : null
+  ].filter(Boolean).join(", ") || "all participants";
+
+  if (!b1.length) {
+    body.innerHTML = `<p style="color:#555;padding:16px">No data for this selection.</p>`;
+    return;
+  }
+
+  const bar = (v, len=12) => {
+    const n = Math.round(v * len);
+    return "█".repeat(n) + "░".repeat(len - n);
+  };
+
+  let html = `<div style="color:#666;font-size:0.78rem;margin-bottom:16px">${nPart} participant${nPart!==1?"s":""} · ${label}</div>`;
+
+  /* Block 1 valence table */
+  const b1Agg = {};
+  for (const r of b1) {
+    if (!b1Agg[r.target_label]) b1Agg[r.target_label] = { cat: r.target_category, sub: r.target_subcategory, vals: [] };
+    if (r.prop_good != null) b1Agg[r.target_label].vals.push(r.prop_good);
+  }
+  const b1Sorted = Object.entries(b1Agg)
+    .filter(([,d]) => d.vals.length)
+    .sort((a,b) => {
+      const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
+      const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
+      return mb - ma;
+    });
+  if (b1Sorted.length) {
+    html += `<div style="color:#e8a030;margin:0 0 6px;font-size:0.8rem;font-weight:bold">Block 1 — Valence (mean prop_good per node)</div>`;
+    html += `<table><tr><th>Node</th><th>Category</th><th>N</th><th>Mean prop_good</th><th>Bar</th></tr>`;
+    for (const [lbl, d] of b1Sorted) {
+      const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
+      const col = m >= 0.5 ? "#27ae60" : "#e67e22";
+      html += `<tr><td>${lbl}</td><td>${d.sub?d.sub:d.cat}</td><td>${d.vals.length}</td>`;
+      html += `<td style="color:${col}">${m.toFixed(2)}</td><td style="color:${col};letter-spacing:-1px">${bar(m)}</td></tr>`;
+    }
+    html += `</table>`;
+  }
+
+  /* Block 2 association table */
+  const b2Agg = {};
+  for (const r of b2) {
+    if (!b2Agg[r.pair_id]) b2Agg[r.pair_id] = { n1: r.node1_label, n2: r.node2_label, vals: [] };
+    if (r.prop_together != null) b2Agg[r.pair_id].vals.push(r.prop_together);
+  }
+  const b2Sorted = Object.entries(b2Agg)
+    .filter(([,d]) => d.vals.length)
+    .sort((a,b) => {
+      const ma = a[1].vals.reduce((x,y)=>x+y,0)/a[1].vals.length;
+      const mb = b[1].vals.reduce((x,y)=>x+y,0)/b[1].vals.length;
+      return mb - ma;
+    })
+    .slice(0, 30);
+  if (b2Sorted.length) {
+    html += `<div style="color:#5a9;margin:18px 0 6px;font-size:0.8rem;font-weight:bold">Block 2 — Association (mean prop_together per pair, top 30)</div>`;
+    html += `<table><tr><th>Node 1</th><th>Node 2</th><th>N</th><th>Mean prop_together</th><th>Bar</th></tr>`;
+    for (const [,d] of b2Sorted) {
+      const m = d.vals.reduce((a,b)=>a+b,0)/d.vals.length;
+      html += `<tr><td>${d.n1}</td><td>${d.n2}</td><td>${d.vals.length}</td>`;
+      html += `<td>${m.toFixed(2)}</td><td style="color:#5a9;letter-spacing:-1px">${bar(m)}</td></tr>`;
+    }
+    html += `</table>`;
+  }
+
+  body.innerHTML = html;
+}
+
 /* ── Political camp mapping ── */
 const CAMP_MAP = {
   strong_progressive:     "Liberal",
@@ -2312,14 +2458,17 @@ function normalizeValences(nodes) {
   scored.forEach(n => { n.valenceScore = (n.valenceScore - mn) / range; });
 }
 
-/* ── Build camp data (nodes + edges with centrality + valence) ── */
-function buildCampData(camp, nodeValences) {
+/* ── Build group data (nodes + edges) for an ideology × knowledge combination ── */
+function buildCampData(camp, nodeValences, knowledge) {
   let b2rows;
   if (camp === "All") {
     b2rows = _b2Sum;
   } else {
     const pids = new Set(_b2Sum.filter(r => CAMP_MAP[r.participant_type] === camp).map(r => r.participant_id));
     b2rows = _b2Sum.filter(r => pids.has(r.participant_id));
+  }
+  if (knowledge && knowledge !== "All") {
+    b2rows = b2rows.filter(r => r.participant_knowledge === knowledge);
   }
   const nodeData = getNodesFromEdges(b2rows);
   const edgeData = aggB2(b2rows);
@@ -2349,6 +2498,17 @@ function setupCampTabs(tabsId, onChange) {
   });
 }
 
+/* ── Set up knowledge tab click handlers ── */
+function setupKnowTabs(tabsId, onChange) {
+  document.querySelectorAll(`#${tabsId} .camp-tab`).forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(`#${tabsId} .camp-tab`).forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      onChange(btn.dataset.know || "All");
+    });
+  });
+}
+
 /* ── Main entry point ── */
 function runAnalysis() {
   document.getElementById("viz-nav").style.display = "flex";
@@ -2356,54 +2516,79 @@ function runAnalysis() {
 
   // Compute per-camp node valence: each camp uses only its own participants' B1 data
   // so liberals see Democrats as good/blue, conservatives see them as bad/red, etc.
-  function campB1(camp) {
-    if (camp === "All") return _b1Sum;
-    return _b1Sum.filter(r => CAMP_MAP[r.participant_type] === camp);
+  function campB1(camp, knowledge) {
+    let rows = _b1Sum;
+    if (camp !== "All") rows = rows.filter(r => CAMP_MAP[r.participant_type] === camp);
+    if (knowledge && knowledge !== "All") rows = rows.filter(r => r.participant_knowledge === knowledge);
+    return rows;
   }
 
-  // Precompute all camp data
-  const campData = {};
-  ["All","Liberal","Centrist","Conservative"].forEach(c => {
-    campData[c] = buildCampData(c, computeNodeValences(campB1(c)));
-  });
+  /* On-demand group data cache — keyed "ideology|knowledge" */
+  const _groupCache = {};
+  function getGroupData(ideology, knowledge) {
+    const key = ideology + "|" + (knowledge || "All");
+    if (!_groupCache[key]) {
+      _groupCache[key] = buildCampData(ideology, computeNodeValences(campB1(ideology, knowledge)), knowledge);
+    }
+    return _groupCache[key];
+  }
+
+  /* Build a campRef for the network modal (all ideology combos at fixed knowledge) */
+  function buildCampRef(knowledge) {
+    return {
+      All:          getGroupData("All",          knowledge),
+      Liberal:      getGroupData("Liberal",       knowledge),
+      Centrist:     getGroupData("Centrist",      knowledge),
+      Conservative: getGroupData("Conservative",  knowledge)
+    };
+  }
+
+  // Precompute default (All|All) so the page loads fast
+  const campData = buildCampRef("All");
 
   // ── Network section ──
   const networkBtn = document.getElementById("open-network-btn");
-  let _networkCamp = "All";
+  let _networkCamp = "All", _networkKnow = "All";
   function updateNetworkBtn() {
-    const d = campData[_networkCamp];
+    const d = getGroupData(_networkCamp, _networkKnow);
+    const suffix = [_networkCamp !== "All" ? _networkCamp : null, _networkKnow !== "All" ? _networkKnow : null].filter(Boolean).join(" · ");
     networkBtn.textContent = d
-      ? `↗ Open Interactive${_networkCamp === "All" ? "" : " — " + _networkCamp}`
-      : `No data for ${_networkCamp}`;
+      ? `↗ Open Interactive${suffix ? " — " + suffix : ""}`
+      : `No data for this selection`;
     networkBtn.disabled = !d;
-    networkBtn.onclick = d ? () => openNetModal("network", campData, _networkCamp) : null;
+    networkBtn.onclick = d ? () => openNetModal("network", buildCampRef(_networkKnow), _networkCamp) : null;
   }
   updateNetworkBtn();
   setupCampTabs("network-tabs", camp => { _networkCamp = camp; updateNetworkBtn(); });
+  setupKnowTabs("network-know-tabs", know => { _networkKnow = know; updateNetworkBtn(); });
 
   // ── Me Connections section ──
-  function updateMe(camp) {
-    const d = campData[camp];
+  let _meCamp = "All", _meKnow = "All";
+  function updateMe() {
+    const d = getGroupData(_meCamp, _meKnow);
     if (d) renderMeChart(d.edges, d.nodes);
     else document.getElementById("viz-me").innerHTML =
-      `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
+      `<p style="color:#555;padding:16px">No data for this selection.</p>`;
   }
-  updateMe("All");
-  setupCampTabs("me-tabs", updateMe);
+  updateMe();
+  setupCampTabs("me-tabs", camp => { _meCamp = camp; updateMe(); });
+  setupKnowTabs("me-know-tabs", know => { _meKnow = know; updateMe(); });
 
   // ── Centrality section ──
-  function updateCentrality(camp) {
-    const d = campData[camp];
+  let _centralityCamp = "All", _centralityKnow = "All";
+  function updateCentrality() {
+    const d = getGroupData(_centralityCamp, _centralityKnow);
     if (d) renderCentralityTable(d.nodes);
     else document.getElementById("viz-centrality").innerHTML =
-      `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
+      `<p style="color:#555;padding:16px">No data for this selection.</p>`;
   }
-  updateCentrality("All");
-  setupCampTabs("centrality-tabs", updateCentrality);
+  updateCentrality();
+  setupCampTabs("centrality-tabs", camp => { _centralityCamp = camp; updateCentrality(); });
+  setupKnowTabs("centrality-know-tabs", know => { _centralityKnow = know; updateCentrality(); });
 
   // ── Leiden communities section ──
   const leidenBtn = document.getElementById("open-leiden-btn");
-  let _leidenCamp = "All";
+  let _leidenCamp = "All", _leidenKnow = "All";
   let _leidenCommMap = null;
   let _sweepResults = [];
 
@@ -2411,33 +2596,36 @@ function runAnalysis() {
     const r = _sweepResults[i];
     if (!r) return;
     _leidenCommMap = r.commMap;
-    renderLeidenCards(campData[_leidenCamp].nodes, campData[_leidenCamp].edges, _leidenCamp, r.commMap);
+    const d = getGroupData(_leidenCamp, _leidenKnow);
+    renderLeidenCards(d.nodes, d.edges, _leidenCamp, r.commMap);
     leidenBtn.disabled = false;
-    leidenBtn.textContent = `↗ Open Community Network${_leidenCamp === "All" ? "" : " — " + _leidenCamp}`;
-    leidenBtn.onclick = () => openNetModal("community", campData, _leidenCamp);
+    const suffix = [_leidenCamp !== "All" ? _leidenCamp : null, _leidenKnow !== "All" ? _leidenKnow : null].filter(Boolean).join(" · ");
+    leidenBtn.textContent = `↗ Open Community Network${suffix ? " — " + suffix : ""}`;
+    leidenBtn.onclick = () => openNetModal("community", buildCampRef(_leidenKnow), _leidenCamp);
     _sweepResults.forEach((_, j) => {
       const tr = document.getElementById("sweep-row-" + j);
       if (tr) tr.style.background = j === i ? "#1a2535" : "";
     });
   };
 
-  function updateLeiden(camp) {
-    const d = campData[camp];
+  function updateLeiden() {
+    const d = getGroupData(_leidenCamp, _leidenKnow);
     const sweepDiv = document.getElementById("leiden-sweep-results");
     sweepDiv.innerHTML = "";
     const sweepBtn = document.getElementById("sweep-leiden-btn");
     if (!d) {
       document.getElementById("viz-leiden").innerHTML =
-        `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
+        `<p style="color:#555;padding:16px">No data for this selection.</p>`;
       leidenBtn.disabled = true;
       sweepBtn.disabled = true;
       return;
     }
-    _leidenCommMap = renderLeidenSection(d.nodes, d.edges, camp);
+    _leidenCommMap = renderLeidenSection(d.nodes, d.edges, _leidenCamp);
     leidenBtn.disabled = false;
     sweepBtn.disabled = false;
-    leidenBtn.textContent = `↗ Open Community Network${camp === "All" ? "" : " — " + camp}`;
-    leidenBtn.onclick = () => openNetModal("community", campData, _leidenCamp);
+    const suffix = [_leidenCamp !== "All" ? _leidenCamp : null, _leidenKnow !== "All" ? _leidenKnow : null].filter(Boolean).join(" · ");
+    leidenBtn.textContent = `↗ Open Community Network${suffix ? " — " + suffix : ""}`;
+    leidenBtn.onclick = () => openNetModal("community", buildCampRef(_leidenKnow), _leidenCamp);
     sweepBtn.textContent = "⊕ Find optimal community count";
     sweepBtn.onclick = () => {
       sweepBtn.disabled = true;
@@ -2473,10 +2661,30 @@ function runAnalysis() {
     };
   }
 
-  updateLeiden(_leidenCamp);
-  setupCampTabs("leiden-tabs", camp => { _leidenCamp = camp; updateLeiden(camp); });
+  updateLeiden();
+  setupCampTabs("leiden-tabs", camp => { _leidenCamp = camp; updateLeiden(); });
+  setupKnowTabs("leiden-know-tabs", know => { _leidenKnow = know; updateLeiden(); });
 }
 </script>
+
+<!-- ── Table Results Modal ── -->
+<div id="tbl-modal">
+  <div id="tbl-modal-box">
+    <div id="tbl-modal-hdr">
+      <div id="tm-hdr-left">
+        <span id="tm-title">Aggregate Results (means across participants)</span>
+        <div id="tm-filter-row">
+          <span class="know-label">Ideology:</span>
+          <div id="tm-camp-tabs" class="camp-tabs" style="margin:0"></div>
+          <span class="know-label" style="margin-left:6px">Knowledge:</span>
+          <div id="tm-know-tabs" class="camp-tabs" style="margin:0"></div>
+        </div>
+      </div>
+      <button id="tbl-close-btn" onclick="closeTblModal()" title="Close (Esc)">✕</button>
+    </div>
+    <div id="tbl-modal-body"></div>
+  </div>
+</div>
 
 <!-- ── Interactive Network Modal ── -->
 <div id="net-modal">
