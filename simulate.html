@@ -222,6 +222,8 @@
       <button class="camp-tab" data-camp="Centrist">Centrist</button>
       <button class="camp-tab" data-camp="Conservative">Conservative</button>
     </div>
+    <button id="sweep-leiden-btn" class="open-btn" style="margin-bottom:8px;background:#1a1a1a;border-color:#2a3a5a;color:#9ab">⊕ Find optimal community count</button>
+    <div id="leiden-sweep-results" style="margin-bottom:16px"></div>
     <button id="open-leiden-btn" class="open-btn" style="margin-bottom:16px">↗ Open Community Network</button>
     <div id="viz-leiden"></div>
   </div>
@@ -1366,8 +1368,9 @@ function leidenColor(commId) {
   return LEIDEN_COLORS[commId % LEIDEN_COLORS.length];
 }
 
-function leidenCommunities(nodes, edges) {
+function leidenCommunities(nodes, edges, gamma = 1.0) {
   /* Louvain modularity maximisation with 10 random-order restarts.
+     gamma controls resolution: higher = more communities (standard Q uses gamma=1).
      Returns a Map (nodeName → communityId) with .modularity and .nComm attached. */
   if (nodes.length < 2) {
     const r = new Map(nodes.map(n => [n.label, 0]));
@@ -1431,9 +1434,9 @@ function leidenCommunities(nodes, edges) {
         let bestC = ci, bestGain = 1e-10; /* strict positive threshold */
         for (const [c, kIinC] of cands) {
           if (c === ci) continue;
-          /* ΔQ = (k_{i→c} − k_{i→ci})/m − (Σtot(c) − Σtot(ci))·ki/(2m²) */
+          /* ΔQ = (k_{i→c} − k_{i→ci})/m − γ·(Σtot(c) − Σtot(ci))·ki/(2m²) */
           const gain = (kIinC - kIinCi) / m
-                     - (sigTot[c] - sigTot[ci]) * ki[i] / (2 * m * m);
+                     - gamma * (sigTot[c] - sigTot[ci]) * ki[i] / (2 * m * m);
           if (gain > bestGain) { bestGain = gain; bestC = c; }
         }
         comm[i] = bestC;
@@ -1479,11 +1482,10 @@ function leidenCommunities(nodes, edges) {
   return result;
 }
 
-/* ── Render: Leiden community cards ── */
-function renderLeidenSection(nodes, edges, camp) {
-  const commMap = leidenCommunities(nodes, edges);
-  const Q       = commMap.modularity;
-  const nComm   = commMap.nComm;
+/* ── Render: Leiden community cards (from a pre-computed commMap) ── */
+function renderLeidenCards(nodes, edges, camp, commMap) {
+  const Q     = commMap.modularity;
+  const nComm = commMap.nComm;
 
   /* Group nodes by community */
   const groups = new Map();
@@ -1519,6 +1521,27 @@ function renderLeidenSection(nodes, edges, camp) {
   }
   html += `</div>`;
   document.getElementById("viz-leiden").innerHTML = html;
+}
+
+/* ── γ sweep — find optimal number of communities ── */
+function leidenSweep(nodes, edges) {
+  const gammas = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0];
+  const seen = new Map(); /* nComm → {Q, gamma, commMap} — keep best Q per nComm */
+  for (const g of gammas) {
+    const cm = leidenCommunities(nodes, edges, g);
+    const nc = cm.nComm, q = cm.modularity;
+    if (!seen.has(nc) || q > seen.get(nc).Q)
+      seen.set(nc, { gamma: g, Q: q, commMap: cm });
+  }
+  return [...seen.entries()]
+    .map(([nComm, v]) => ({ nComm, gamma: v.gamma, Q: v.Q, commMap: v.commMap }))
+    .sort((a, b) => a.nComm - b.nComm);
+}
+
+/* ── Render: Leiden section (runs detection then renders cards) ── */
+function renderLeidenSection(nodes, edges, camp) {
+  const commMap = leidenCommunities(nodes, edges);
+  renderLeidenCards(nodes, edges, camp, commMap);
   return commMap;
 }
 
@@ -1551,9 +1574,13 @@ button{background:#1a2535;color:#9ab;border:1px solid #2a3a5a;padding:5px 12px;b
 button:hover{background:#243045}
 #page-title{position:fixed;top:10px;left:50%;transform:translateX(-50%);color:#e8a030;font-size:14px;font-weight:bold;pointer-events:none;background:rgba(13,17,30,.75);padding:4px 16px;border-radius:4px}
 #hint{position:fixed;top:40px;left:50%;transform:translateX(-50%);color:#3a3a3a;font-size:10px;pointer-events:none;white-space:nowrap}
+#comm-toggle{position:fixed;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;z-index:100}
+.comm-btn{background:#1a2535;border:2px solid;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-family:sans-serif;text-align:left;white-space:nowrap;color:#aaa}
+.comm-btn.off{opacity:0.3}
 </style></head><body>
 <div id="page-title">${safe}</div>
 <div id="hint">Scroll = zoom · Drag background = pan · Drag nodes = reposition · Hover = details · Dbl-click = reset</div>
+<div id="comm-toggle"></div>
 <svg id="svg"></svg><div id="tooltip"></div>
 <div id="controls">
   <button onclick="resetView()">⌂ Reset</button>
@@ -1609,10 +1636,18 @@ const HL=el("g",{}),EL=el("g",{}),NL=el("g",{});
 zg.appendChild(HL);zg.appendChild(EL);zg.appendChild(NL);
 let tx=0,ty=0,sc=1;function az(){zg.setAttribute("transform","translate("+tx+","+ty+") scale("+sc+")");}
 function sid(s){return s.replace(/[^a-zA-Z0-9]/g,"_");}
+const commIds=[...new Set(NODES.map(n=>n.community).filter(c=>c!=null))].sort((a,b)=>a-b);
+let visibleComms=new Set(commIds);
+function updateVisibility(){
+  nodes.forEach(n=>{const g=document.getElementById("n_"+sid(n.label));if(g)g.style.opacity=(n.community==null||visibleComms.has(n.community))?"1":"0.08";});
+  EDGES.forEach(e=>{const s=nm[e.n1],t=nm[e.n2];const ln=document.getElementById("e_"+sid(e.id||e.n1+"_"+e.n2));const vis=(!s||s.community==null||visibleComms.has(s.community))&&(!t||t.community==null||visibleComms.has(t.community));if(ln)ln.style.opacity=vis?"":"0";});
+  drawHulls();
+}
 function drawHulls(){
   HL.innerHTML="";
   const groups={};nodes.forEach(n=>{const c=n.community??0;(groups[c]=groups[c]||[]).push({x:n.x,y:n.y});});
   for(const[c,pts]of Object.entries(groups)){
+    if(!visibleComms.has(+c))continue;
     if(pts.length<2)continue;
     const hull=pts.length===2?[{x:pts[0].x-30,y:pts[0].y},{x:pts[1].x+30,y:pts[1].y},{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2-30}]:convexHull(pts);
     const exp=expandPoly(hull,36);
@@ -1673,6 +1708,22 @@ function showET(e,ev){const d=e.centeredAssoc>=0?"go together":"do not go togeth
 function hideTip(){tip.style.display="none";}
 document.addEventListener("mousemove",ev=>{if(tip.style.display!=="none")pos(ev);});
 doLayout();
+/* Community toggle buttons */
+const ctDiv=document.getElementById("comm-toggle");
+commIds.forEach(c=>{
+  const col=COMM_C[c%COMM_C.length];
+  const cnt=NODES.filter(n=>n.community===c).length;
+  const btn=document.createElement("button");
+  btn.className="comm-btn";btn.id="ctoggle_"+c;
+  btn.style.borderColor=col;btn.style.color=col;
+  btn.textContent="Community "+(c+1)+" ("+cnt+")";
+  btn.onclick=()=>{
+    if(visibleComms.has(c)){visibleComms.delete(c);btn.classList.add("off");}
+    else{visibleComms.add(c);btn.classList.remove("off");}
+    updateVisibility();
+  };
+  ctDiv.appendChild(btn);
+});
 <\/script></body></html>`;
 }
 
@@ -1978,17 +2029,44 @@ function runAnalysis() {
   const leidenBtn = document.getElementById("open-leiden-btn");
   let _leidenCamp = "All";
   let _leidenCommMap = null;
+  let _sweepResults = [];
+
+  window._applyLeidenPartition = function(i) {
+    const r = _sweepResults[i];
+    if (!r) return;
+    _leidenCommMap = r.commMap;
+    renderLeidenCards(campData[_leidenCamp].nodes, campData[_leidenCamp].edges, _leidenCamp, r.commMap);
+    leidenBtn.disabled = false;
+    leidenBtn.textContent = `↗ Open Community Network${_leidenCamp === "All" ? "" : " — " + _leidenCamp}`;
+    leidenBtn.onclick = () => {
+      const d = campData[_leidenCamp];
+      const html = generateCommunityHTML(d.nodes, d.edges, _leidenCommMap,
+        (_leidenCamp === "All" ? "All" : _leidenCamp) + " — Leiden Communities");
+      const w = window.open("", "_blank");
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+      else alert("Popup blocked — please allow popups and try again.");
+    };
+    _sweepResults.forEach((_, j) => {
+      const tr = document.getElementById("sweep-row-" + j);
+      if (tr) tr.style.background = j === i ? "#1a2535" : "";
+    });
+  };
 
   function updateLeiden(camp) {
     const d = campData[camp];
+    const sweepDiv = document.getElementById("leiden-sweep-results");
+    sweepDiv.innerHTML = "";
+    const sweepBtn = document.getElementById("sweep-leiden-btn");
     if (!d) {
       document.getElementById("viz-leiden").innerHTML =
         `<p style="color:#555;padding:16px">No data for ${camp}.</p>`;
       leidenBtn.disabled = true;
+      sweepBtn.disabled = true;
       return;
     }
     _leidenCommMap = renderLeidenSection(d.nodes, d.edges, camp);
     leidenBtn.disabled = false;
+    sweepBtn.disabled = false;
     leidenBtn.textContent = `↗ Open Community Network${camp === "All" ? "" : " — " + camp}`;
     leidenBtn.onclick = () => {
       const html = generateCommunityHTML(d.nodes, d.edges, _leidenCommMap,
@@ -1996,6 +2074,39 @@ function runAnalysis() {
       const w = window.open("", "_blank");
       if (w) { w.document.open(); w.document.write(html); w.document.close(); }
       else alert("Popup blocked — please allow popups and try again.");
+    };
+    sweepBtn.textContent = "⊕ Find optimal community count";
+    sweepBtn.onclick = () => {
+      sweepBtn.disabled = true;
+      sweepBtn.textContent = "Computing…";
+      setTimeout(() => {
+        const results = leidenSweep(d.nodes, d.edges);
+        _sweepResults = results;
+        const bestIdx = results.reduce((bi, r, i) => r.Q > results[bi].Q ? i : bi, 0);
+        let tbl = `<div style="font-size:0.78rem;color:#666;margin-bottom:8px">`
+          + `${results.length} unique partition${results.length !== 1 ? 's' : ''} found`
+          + ` · click <em>Use</em> to apply</div>`;
+        tbl += `<table style="width:100%;max-width:460px;border-collapse:collapse;font-size:0.78rem">`;
+        tbl += `<tr>`
+          + `<th style="text-align:left;color:#555;padding:3px 8px;border-bottom:1px solid #1e1e1e">Communities</th>`
+          + `<th style="text-align:left;color:#555;padding:3px 8px;border-bottom:1px solid #1e1e1e">Best γ</th>`
+          + `<th style="text-align:left;color:#555;padding:3px 8px;border-bottom:1px solid #1e1e1e">Q</th>`
+          + `<th style="border-bottom:1px solid #1e1e1e"></th></tr>`;
+        results.forEach((r, i) => {
+          const qCol = r.Q > 0.25 ? "#5a9" : r.Q > 0.1 ? "#e8a030" : "#c0392b";
+          tbl += `<tr id="sweep-row-${i}" style="background:${i === bestIdx ? '#1a2535' : ''};border-bottom:1px solid #111">`;
+          tbl += `<td style="padding:4px 8px;color:#ccc">${r.nComm}</td>`;
+          tbl += `<td style="padding:4px 8px;color:#888">${r.gamma.toFixed(2)}</td>`;
+          tbl += `<td style="padding:4px 8px;color:${qCol}">${r.Q.toFixed(3)}</td>`;
+          tbl += `<td style="padding:4px 8px"><button onclick="window._applyLeidenPartition(${i})" `
+               + `style="background:#111;color:#9ab;border:1px solid #2a3a5a;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.75rem">Use</button></td>`;
+          tbl += `</tr>`;
+        });
+        tbl += `</table>`;
+        sweepDiv.innerHTML = tbl;
+        sweepBtn.disabled = false;
+        sweepBtn.textContent = "⊕ Find optimal community count";
+      }, 10);
     };
   }
 
