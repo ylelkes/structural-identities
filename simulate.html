@@ -117,6 +117,63 @@
   .camp-tab[data-camp="Liberal"].active  { background: #1a2a3a; color: #5b8dd9; border-color: #5b8dd9; }
   .camp-tab[data-camp="Centrist"].active { background: #2a2010; color: #e8a030; border-color: #e8a030; }
   .camp-tab[data-camp="Conservative"].active { background: #2a1a18; color: #d45f3c; border-color: #d45f3c; }
+
+  /* ── Network Modal ── */
+  #net-modal {
+    display: none; position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,.88); align-items: center; justify-content: center;
+  }
+  #net-modal.open { display: flex; }
+  #net-modal-box {
+    width: 92vw; height: 88vh; background: #0d1117;
+    border: 1px solid #2a2a2a; border-radius: 8px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #net-modal-hdr {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid #1e1e1e;
+    background: #111; flex-shrink: 0;
+  }
+  #nm-hdr-left { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+  #nm-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  #nm-title { color: #e8a030; font-weight: bold; font-size: 0.88rem; }
+  #nm-subtitle { font-size: 0.75rem; }
+  #nm-camp-tabs { margin: 0; }
+  #nm-camp-tabs .camp-tab { font-size: 0.72rem; padding: 3px 10px; }
+  #nm-comm-row {
+    display: none; gap: 5px; align-items: center; flex-wrap: wrap;
+    font-family: 'Menlo','Consolas',monospace;
+  }
+  #nm-close-btn {
+    background: none; border: none; color: #555; font-size: 1.3rem;
+    cursor: pointer; padding: 0 4px; line-height: 1; flex-shrink: 0; margin-top: 2px;
+  }
+  #nm-close-btn:hover { color: #ccc; }
+  #net-modal-hint {
+    color: #2a2a2a; font-size: 0.7rem; padding: 3px 14px;
+    flex-shrink: 0; background: #0d1117; border-bottom: 1px solid #111;
+  }
+  #net-modal-body { flex: 1; position: relative; overflow: hidden; background: #0d1117; }
+  #nm-svg { display: block; position: absolute; inset: 0; }
+  #nm-tip {
+    display: none; position: absolute; pointer-events: none; z-index: 10;
+    background: rgba(10,14,26,.97); border: 1px solid #2a3a5a; border-radius: 5px;
+    padding: 8px 12px; font-size: 12px; line-height: 1.65; color: #ccc; max-width: 260px;
+  }
+  #net-modal-footer {
+    display: flex; gap: 8px; align-items: center;
+    padding: 7px 14px; border-top: 1px solid #1e1e1e; background: #111; flex-shrink: 0;
+  }
+  #net-modal-footer button {
+    background: #1a2535; color: #9ab; border: 1px solid #2a3a5a;
+    padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 11px; font-family: inherit;
+  }
+  #net-modal-footer button:hover { background: #243045; }
+  .nm-comm-btn {
+    border: 2px solid; padding: 2px 8px; border-radius: 3px; cursor: pointer;
+    font-size: 10px; background: #1a2535; white-space: nowrap; font-family: inherit;
+  }
+  .nm-comm-btn.off { opacity: 0.3; }
 </style>
 </head>
 <body>
@@ -1727,6 +1784,328 @@ commIds.forEach(c=>{
 <\/script></body></html>`;
 }
 
+/* ── Interactive Network Modal ───────────────────────────────────────────────
+   Handles both "network" (valence-coloured) and "community" (Leiden-coloured)
+   views inside an inline modal. Camp tabs inside the modal let the user switch
+   groups without reopening; community toggles show/hide individual communities.
+────────────────────────────────────────────────────────────────────────────── */
+let _nmMode = "network";   /* "network" | "community" */
+let _nmNodes = [], _nmEdges = [], _nmNm = {};
+let _nmVisComms = new Set();
+let _nmCampRef = null, _nmCamp = "All";
+let _nmTx = 0, _nmTy = 0, _nmSc = 1;
+let _nmDrag = null, _nmPan = false;
+let _nmPx0 = 0, _nmPy0 = 0, _nmTx0 = 0, _nmTy0 = 0;
+const NM_NS = "http://www.w3.org/2000/svg";
+
+function nmEl(tag, a) {
+  const e = document.createElementNS(NM_NS, tag);
+  for (const [k,v] of Object.entries(a)) e.setAttribute(k, v);
+  return e;
+}
+function nmStar5(cx,cy,r) {
+  const pts=[], ir=r*0.42;
+  for (let i=0;i<10;i++){const ang=i*Math.PI/5-Math.PI/2,rad=i%2===0?r:ir;pts.push((cx+rad*Math.cos(ang)).toFixed(1)+","+(cy+rad*Math.sin(ang)).toFixed(1));}
+  return pts.join(" ");
+}
+function nmShape(cat,cx,cy,r,fill,stroke,sw,lbl) {
+  const a={fill,stroke,"stroke-width":sw};
+  if(lbl==="me")       return nmEl("polygon",{...a,points:nmStar5(cx,cy,r)});
+  if(cat==="identity") return nmEl("circle",{...a,cx,cy,r});
+  if(cat==="policy")   return nmEl("rect",{...a,x:cx-r,y:cy-r,width:2*r,height:2*r});
+  return nmEl("polygon",{...a,points:cx+","+(cy-r)+" "+(cx+r)+","+cy+" "+cx+","+(cy+r)+" "+(cx-r)+","+cy});
+}
+function nmLL(lbl){if(lbl.length<=9)return[lbl];const w=lbl.split(" ");if(w.length===1)return[lbl.slice(0,9)+"…"];const m=Math.ceil(w.length/2);return[w.slice(0,m).join(" "),w.slice(m).join(" ")];}
+function nmSid(s){return s.replace(/[^a-zA-Z0-9]/g,"_");}
+function nmLc(h1,h2,t){const p=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];const[r1,g1,b1]=p(h1),[r2,g2,b2]=p(h2);return"#"+[Math.round(r1+(r2-r1)*t),Math.round(g1+(g2-g1)*t),Math.round(b1+(b2-b1)*t)].map(v=>v.toString(16).padStart(2,"0")).join("");}
+function nmVc(s){if(s==null)return"#3a4455";const t=Math.max(0,Math.min(1,s));return t<0.5?nmLc("#3a4455","#8b0000",1-t*2):nmLc("#3a4455","#003580",(t-0.5)*2);}
+const NM_CAT={identity:"#5b8dd9",policy:"#6ac46a",values:"#c97de8"};
+
+/* Convex hull helpers (community mode) */
+function nmCross(O,A,B){return(A.x-O.x)*(B.y-O.y)-(A.y-O.y)*(B.x-O.x);}
+function nmHull(pts){if(pts.length<3)return pts;const n=pts.length,p=[...pts].sort((a,b)=>a.x===b.x?a.y-b.y:a.x-b.x);const lo=[],hi=[];for(let i=0;i<n;i++){while(lo.length>=2&&nmCross(lo[lo.length-2],lo[lo.length-1],p[i])<=0)lo.pop();lo.push(p[i]);}for(let i=n-1;i>=0;i--){while(hi.length>=2&&nmCross(hi[hi.length-2],hi[hi.length-1],p[i])<=0)hi.pop();hi.push(p[i]);}hi.pop();lo.pop();return lo.concat(hi);}
+function nmExpand(pts,pad){const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;return pts.map(p=>{const dx=p.x-cx,dy=p.y-cy,d=Math.sqrt(dx*dx+dy*dy)||1;return{x:p.x+dx/d*pad,y:p.y+dy/d*pad};});}
+function nmHullPath(pts){return"M"+pts.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join("L")+"Z";}
+
+/* Layer accessors */
+function nmHL(){return document.getElementById("nm-hl");}
+function nmEL(){return document.getElementById("nm-el");}
+function nmNL(){return document.getElementById("nm-nl");}
+
+/* Force-directed layout */
+function nmRunLayout(){
+  const body=document.getElementById("net-modal-body");
+  const W=body.clientWidth||900, H=body.clientHeight||600;
+  const cx=W/2,cy=H/2,pad=90,k=Math.sqrt(W*H/_nmNodes.length)*0.75;
+  _nmNodes.forEach(n=>{n.x=cx+(Math.random()-0.5)*W*0.5;n.y=cy+(Math.random()-0.5)*H*0.5;});
+  for(let it=0;it<350;it++){
+    const tmp=(1-it/350)*(W/7);
+    _nmNodes.forEach(n=>{n.dx=0;n.dy=0;});
+    for(let i=0;i<_nmNodes.length;i++)for(let j=i+1;j<_nmNodes.length;j++){
+      const dx=_nmNodes[i].x-_nmNodes[j].x||0.01,dy=_nmNodes[i].y-_nmNodes[j].y||0.01;
+      const d=Math.sqrt(dx*dx+dy*dy)||0.01,f=k*k/d;
+      _nmNodes[i].dx+=dx/d*f;_nmNodes[i].dy+=dy/d*f;_nmNodes[j].dx-=dx/d*f;_nmNodes[j].dy-=dy/d*f;
+    }
+    _nmNodes.forEach(n=>{const p=n.label==="me"?0.08:0.012;n.dx+=(cx-n.x)*p;n.dy+=(cy-n.y)*p;});
+    _nmEdges.forEach(e=>{const s=_nmNm[e.n1],t=_nmNm[e.n2];if(!s||!t)return;const w=Math.max(e.rtWeightedStrength||e.assocStrength,0.01),dx=s.x-t.x,dy=s.y-t.y,d=Math.sqrt(dx*dx+dy*dy)||0.01,f=d*d/k*w*1.8;s.dx-=dx/d*f;s.dy-=dy/d*f;t.dx+=dx/d*f;t.dy+=dy/d*f;});
+    _nmNodes.forEach(n=>{const d=Math.sqrt(n.dx*n.dx+n.dy*n.dy)||0.01;n.x+=n.dx/d*Math.min(d,tmp);n.y+=n.dy/d*Math.min(d,tmp);n.x=Math.max(pad,Math.min(W-pad,n.x));n.y=Math.max(pad,Math.min(H-pad,n.y));});
+  }
+  const me=_nmNodes.find(n=>n.label==="me");
+  if(me){const ox=cx-me.x,oy=cy-me.y;_nmNodes.forEach(n=>{n.x=Math.max(pad,Math.min(W-pad,n.x+ox));n.y=Math.max(pad,Math.min(H-pad,n.y+oy));});}
+}
+
+function nmDrawHulls(){
+  const hl=nmHL(); hl.innerHTML="";
+  if(_nmMode!=="community") return;
+  const groups={};
+  _nmNodes.forEach(n=>{const c=n.community??0;(groups[c]=groups[c]||[]).push({x:n.x,y:n.y});});
+  for(const[c,pts]of Object.entries(groups)){
+    if(!_nmVisComms.has(+c))continue;
+    if(pts.length<2)continue;
+    const hull=pts.length===2?[{x:pts[0].x-30,y:pts[0].y},{x:pts[1].x+30,y:pts[1].y},{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2-30}]:nmHull(pts);
+    const exp=nmExpand(hull,36),col=LEIDEN_COLORS[+c%LEIDEN_COLORS.length];
+    hl.appendChild(nmEl("path",{d:nmHullPath(exp),fill:col,"fill-opacity":"0.13",stroke:col,"stroke-opacity":"0.35","stroke-width":"1.5","stroke-linejoin":"round"}));
+  }
+}
+
+function nmDrawEdge(e){
+  const s=_nmNm[e.n1],t=_nmNm[e.n2];if(!s||!t)return;
+  const eid="nme_"+nmSid(e.id||e.n1+"_"+e.n2);
+  let ln=document.getElementById(eid);
+  if(!ln){
+    const w=e.rtWeightedStrength||e.assocStrength;
+    ln=nmEl("line",{id:eid,stroke:e.centeredAssoc>=0?"#27ae60":"#e67e22","stroke-linecap":"round",
+      "stroke-width":(0.8+w*14).toFixed(1),"stroke-opacity":Math.min(0.15+w*1.8,0.9).toFixed(2)});
+    nmEL().appendChild(ln);
+    ln.addEventListener("mouseenter",ev=>nmShowET(e,ev));
+    ln.addEventListener("mouseleave",nmHideTip);
+  }
+  if(_nmMode==="community"){
+    const sv=s.community==null||_nmVisComms.has(s.community);
+    const tv=t.community==null||_nmVisComms.has(t.community);
+    ln.style.opacity=(sv&&tv)?"":"0";
+  } else { ln.style.opacity=""; }
+  ln.setAttribute("x1",s.x.toFixed(1));ln.setAttribute("y1",s.y.toFixed(1));
+  ln.setAttribute("x2",t.x.toFixed(1));ln.setAttribute("y2",t.y.toFixed(1));
+}
+
+function nmDrawNode(n){
+  const nid="nmn_"+nmSid(n.label);
+  let g=document.getElementById(nid);
+  const r=13+n.strengthNorm*11;
+  if(!g){
+    g=nmEl("g",{id:nid,cursor:"grab"});
+    const fill=_nmMode==="community"&&n.community!=null?LEIDEN_COLORS[n.community%LEIDEN_COLORS.length]:nmVc(n.valenceScore);
+    const stroke=NM_CAT[n.category]||"#607080";
+    g.appendChild(nmShape(n.category,0,0,r,fill,stroke,"2.5",n.label));
+    nmLL(n.label).forEach((txt,i)=>{
+      const t=nmEl("text",{x:"0",y:r+11+i*12,"text-anchor":"middle","font-size":"9",
+        "font-family":"sans-serif","fill":"#ddd","font-weight":"bold","pointer-events":"none"});
+      t.textContent=txt;g.appendChild(t);
+    });
+    nmNL().appendChild(g);
+    g.addEventListener("mouseenter",ev=>nmShowNT(n,ev));
+    g.addEventListener("mouseleave",nmHideTip);
+    g.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();
+      _nmDrag={node:n,mx:ev.clientX,my:ev.clientY,nx:n.x,ny:n.y};g.style.cursor="grabbing";});
+  }
+  if(_nmMode==="community"){
+    g.style.opacity=(n.community==null||_nmVisComms.has(n.community))?"1":"0.08";
+  } else { g.style.opacity="1"; }
+  g.setAttribute("transform","translate("+n.x.toFixed(1)+","+n.y.toFixed(1)+")");
+}
+
+function nmRenderAll(){nmDrawHulls();_nmEdges.forEach(nmDrawEdge);_nmNodes.forEach(nmDrawNode);}
+
+function nmDoLayout(){
+  const body=document.getElementById("net-modal-body");
+  const W=body.clientWidth||900,H=body.clientHeight||600;
+  const svg=document.getElementById("nm-svg");
+  svg.setAttribute("width",W);svg.setAttribute("height",H);
+  nmNL().innerHTML="";nmEL().innerHTML="";nmHL().innerHTML="";
+  nmRunLayout();nmRenderAll();
+}
+
+function nmAz(){
+  const zg=document.getElementById("nm-zg");
+  if(zg)zg.setAttribute("transform","translate("+_nmTx+","+_nmTy+") scale("+_nmSc+")");
+}
+function nmReset(){_nmTx=0;_nmTy=0;_nmSc=1;nmAz();}
+
+/* Tooltips */
+function nmPos(ev){
+  const tip=document.getElementById("nm-tip");
+  const body=document.getElementById("net-modal-body");
+  const rect=body.getBoundingClientRect();
+  const x=ev.clientX-rect.left+14,y=ev.clientY-rect.top-10;
+  tip.style.left=(x+tip.offsetWidth>rect.width?x-tip.offsetWidth-28:x)+"px";
+  tip.style.top=(y+tip.offsetHeight>rect.height?y-tip.offsetHeight:y)+"px";
+}
+function nmShowNT(n,ev){
+  const col=_nmMode==="community"&&n.community!=null?LEIDEN_COLORS[n.community%LEIDEN_COLORS.length]:NM_CAT[n.category]||"#888";
+  const vc=n.valenceScore!=null?(n.valenceScore>0.55?"positive":n.valenceScore<0.45?"negative":"neutral")+" ("+n.meanPropGood.toFixed(2)+")":"—";
+  const tip=document.getElementById("nm-tip");
+  tip.innerHTML="<strong style='color:#ddd'>"+n.label+"</strong>"
+    +(_nmMode==="community"?"<br>Community: <span style='color:"+col+"'>"+(n.community!=null?"C"+(n.community+1):"—")+"</span>":"")
+    +"<br>Category: <span style='color:#aaa'>"+n.category+"</span>"
+    +"<br>Valence: <span style='color:#aaa'>"+vc+"</span>"
+    +"<br>Strength: <span style='color:#aaa'>"+n.strengthNorm.toFixed(3)+"</span>"
+    +"<br>Eigenvector: <span style='color:#aaa'>"+n.eigen.toFixed(3)+"</span>";
+  tip.style.display="block";nmPos(ev);
+}
+function nmShowET(e,ev){
+  const d=e.centeredAssoc>=0?"go together":"do not go together",c=e.centeredAssoc>=0?"#27ae60":"#e67e22";
+  const tip=document.getElementById("nm-tip");
+  tip.innerHTML="<strong style='color:#ddd'>"+e.n1+"</strong> &amp; <strong style='color:#ddd'>"+e.n2+"</strong>"
+    +"<br><span style='color:"+c+"'>"+d+"</span>"
+    +"<br>prop_together: <span style='color:#aaa'>"+e.meanAssoc.toFixed(3)+"</span>"
+    +"<br>Strength: <span style='color:#aaa'>"+e.assocStrength.toFixed(3)+"</span>"
+    +(e.meanRT?"<br>Mean RT: <span style='color:#aaa'>"+e.meanRT+"ms</span>":"")
+    +"<br>N: <span style='color:#aaa'>"+e.nPart+"</span>";
+  tip.style.display="block";nmPos(ev);
+}
+function nmHideTip(){document.getElementById("nm-tip").style.display="none";}
+
+/* Interaction */
+function nmSetupInteraction(){
+  const svg=document.getElementById("nm-svg");
+  svg.addEventListener("wheel",ev=>{
+    ev.preventDefault();
+    const d=ev.deltaY>0?0.85:1/0.85;
+    const rect=svg.getBoundingClientRect();
+    const mx=ev.clientX-rect.left,my=ev.clientY-rect.top;
+    _nmTx=mx-(mx-_nmTx)*d;_nmTy=my-(my-_nmTy)*d;
+    _nmSc=Math.max(0.05,Math.min(30,_nmSc*d));nmAz();
+  },{passive:false});
+  svg.addEventListener("mousedown",ev=>{if(_nmDrag)return;_nmPan=true;_nmPx0=ev.clientX;_nmPy0=ev.clientY;_nmTx0=_nmTx;_nmTy0=_nmTy;svg.style.cursor="grabbing";});
+  svg.addEventListener("dblclick",nmReset);
+}
+function _nmMouseMove(ev){
+  if(_nmDrag){const n=_nmDrag.node;n.x=_nmDrag.nx+(ev.clientX-_nmDrag.mx)/_nmSc;n.y=_nmDrag.ny+(ev.clientY-_nmDrag.my)/_nmSc;nmDrawNode(n);nmDrawHulls();_nmEdges.forEach(e=>{if(e.n1===n.label||e.n2===n.label)nmDrawEdge(e);});}
+  else if(_nmPan){_nmTx=_nmTx0+(ev.clientX-_nmPx0);_nmTy=_nmTy0+(ev.clientY-_nmPy0);nmAz();}
+}
+function _nmMouseUp(){
+  if(_nmDrag){const g=document.getElementById("nmn_"+nmSid(_nmDrag.node.label));if(g)g.style.cursor="grab";_nmDrag=null;}
+  _nmPan=false;
+  const svg=document.getElementById("nm-svg");if(svg)svg.style.cursor="default";
+}
+function _nmTipFollow(ev){const tip=document.getElementById("nm-tip");if(tip&&tip.style.display!=="none")nmPos(ev);}
+
+/* Community toggles */
+function nmSetupCommToggles(){
+  const row=document.getElementById("nm-comm-row");
+  row.innerHTML="";
+  const commIds=[...new Set(_nmNodes.map(n=>n.community).filter(c=>c!=null))].sort((a,b)=>a-b);
+  _nmVisComms=new Set(commIds);
+  if(!commIds.length){row.style.display="none";return;}
+  row.style.display="flex";
+  const lbl=document.createElement("span");
+  lbl.textContent="Show:";lbl.style.cssText="color:#555;font-size:10px;flex-shrink:0";
+  row.appendChild(lbl);
+  commIds.forEach(c=>{
+    const col=LEIDEN_COLORS[c%LEIDEN_COLORS.length];
+    const cnt=_nmNodes.filter(n=>n.community===c).length;
+    const btn=document.createElement("button");
+    btn.className="nm-comm-btn";btn.id="nmctog_"+c;
+    btn.style.borderColor=col;btn.style.color=col;
+    btn.textContent="C"+(c+1)+" ("+cnt+")";
+    btn.onclick=()=>{
+      if(_nmVisComms.has(c)){_nmVisComms.delete(c);btn.classList.add("off");}
+      else{_nmVisComms.add(c);btn.classList.remove("off");}
+      nmDrawHulls();_nmNodes.forEach(nmDrawNode);_nmEdges.forEach(nmDrawEdge);
+    };
+    row.appendChild(btn);
+  });
+}
+
+/* Camp tabs inside modal */
+function nmSetupCampTabs(initCamp){
+  const tabs=document.getElementById("nm-camp-tabs");
+  tabs.innerHTML="";
+  ["All","Liberal","Centrist","Conservative"].forEach(camp=>{
+    const btn=document.createElement("button");
+    btn.className="camp-tab"+(camp===initCamp?" active":"");
+    if(camp!=="All")btn.dataset.camp=camp;
+    btn.textContent=camp;
+    btn.onclick=()=>{
+      tabs.querySelectorAll(".camp-tab").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      nmLoadCamp(camp);
+    };
+    tabs.appendChild(btn);
+  });
+}
+
+/* Load a camp's data into the modal and (re)render */
+function nmLoadCamp(camp){
+  _nmCamp=camp;
+  const d=_nmCampRef[camp];
+  if(!d){
+    document.getElementById("nm-title").textContent=camp+" — no data for this group";
+    document.getElementById("nm-subtitle").textContent="";
+    document.getElementById("nm-comm-row").style.display="none";
+    nmNL().innerHTML="";nmEL().innerHTML="";nmHL().innerHTML="";
+    return;
+  }
+  _nmNodes=d.nodes.map(n=>({...n}));
+  _nmEdges=d.edges;
+  _nmNm={};_nmNodes.forEach(n=>_nmNm[n.label]=n);
+
+  if(_nmMode==="community"){
+    const cm=leidenCommunities(_nmNodes,_nmEdges);
+    _nmNodes.forEach(n=>{n.community=cm.get(n.label)??null;});
+    const nC=cm.nComm,Q=cm.modularity;
+    const qCol=Q>0.25?"#5a9":Q>0.1?"#e8a030":"#c0392b";
+    document.getElementById("nm-title").textContent=(camp==="All"?"All":camp)+" — Leiden Communities";
+    const sub=document.getElementById("nm-subtitle");
+    sub.textContent=nC+" communit"+(nC===1?"y":"ies")+"  ·  Q = "+Q.toFixed(3);
+    sub.style.color=qCol;
+    nmSetupCommToggles();
+  } else {
+    document.getElementById("nm-title").textContent=(camp==="All"?"All Participants":camp)+" — Belief Network";
+    document.getElementById("nm-subtitle").textContent="";
+    document.getElementById("nm-comm-row").style.display="none";
+  }
+  nmDoLayout();
+}
+
+/* Open modal */
+function openNetModal(mode,campRef,initCamp){
+  _nmMode=mode;_nmCampRef=campRef;_nmCamp=initCamp;
+  const overlay=document.getElementById("net-modal");
+  overlay.classList.add("open");
+  nmSetupCampTabs(initCamp);
+  /* Init SVG once the modal is painted */
+  requestAnimationFrame(()=>{
+    const body=document.getElementById("net-modal-body");
+    const W=body.clientWidth||900,H=body.clientHeight||600;
+    const svg=document.getElementById("nm-svg");
+    svg.innerHTML="";
+    svg.setAttribute("width",W);svg.setAttribute("height",H);
+    const zg=nmEl("g",{id:"nm-zg"});svg.appendChild(zg);
+    zg.appendChild(nmEl("g",{id:"nm-hl"}));
+    zg.appendChild(nmEl("g",{id:"nm-el"}));
+    zg.appendChild(nmEl("g",{id:"nm-nl"}));
+    _nmTx=0;_nmTy=0;_nmSc=1;
+    nmSetupInteraction();
+    window.addEventListener("mousemove",_nmMouseMove);
+    window.addEventListener("mouseup",_nmMouseUp);
+    document.addEventListener("mousemove",_nmTipFollow);
+    nmLoadCamp(initCamp);
+  });
+  document.addEventListener("keydown",_nmEscKey);
+}
+function _nmEscKey(e){if(e.key==="Escape")closeNetModal();}
+function closeNetModal(){
+  document.getElementById("net-modal").classList.remove("open");
+  window.removeEventListener("mousemove",_nmMouseMove);
+  window.removeEventListener("mouseup",_nmMouseUp);
+  document.removeEventListener("mousemove",_nmTipFollow);
+  document.removeEventListener("keydown",_nmEscKey);
+  _nmDrag=null;_nmPan=false;
+  nmHideTip();
+}
+
 /* ── Political camp mapping ── */
 const CAMP_MAP = {
   strong_progressive:     "Liberal",
@@ -1997,10 +2376,7 @@ function runAnalysis() {
       ? `↗ Open Interactive${_networkCamp === "All" ? "" : " — " + _networkCamp}`
       : `No data for ${_networkCamp}`;
     networkBtn.disabled = !d;
-    networkBtn.onclick = d
-      ? () => openInteractiveNetwork(d.nodes, d.edges,
-          (_networkCamp === "All" ? "All" : _networkCamp) + " Belief Network")
-      : null;
+    networkBtn.onclick = d ? () => openNetModal("network", campData, _networkCamp) : null;
   }
   updateNetworkBtn();
   setupCampTabs("network-tabs", camp => { _networkCamp = camp; updateNetworkBtn(); });
@@ -2038,14 +2414,7 @@ function runAnalysis() {
     renderLeidenCards(campData[_leidenCamp].nodes, campData[_leidenCamp].edges, _leidenCamp, r.commMap);
     leidenBtn.disabled = false;
     leidenBtn.textContent = `↗ Open Community Network${_leidenCamp === "All" ? "" : " — " + _leidenCamp}`;
-    leidenBtn.onclick = () => {
-      const d = campData[_leidenCamp];
-      const html = generateCommunityHTML(d.nodes, d.edges, _leidenCommMap,
-        (_leidenCamp === "All" ? "All" : _leidenCamp) + " — Leiden Communities");
-      const w = window.open("", "_blank");
-      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-      else alert("Popup blocked — please allow popups and try again.");
-    };
+    leidenBtn.onclick = () => openNetModal("community", campData, _leidenCamp);
     _sweepResults.forEach((_, j) => {
       const tr = document.getElementById("sweep-row-" + j);
       if (tr) tr.style.background = j === i ? "#1a2535" : "";
@@ -2068,13 +2437,7 @@ function runAnalysis() {
     leidenBtn.disabled = false;
     sweepBtn.disabled = false;
     leidenBtn.textContent = `↗ Open Community Network${camp === "All" ? "" : " — " + camp}`;
-    leidenBtn.onclick = () => {
-      const html = generateCommunityHTML(d.nodes, d.edges, _leidenCommMap,
-        (camp === "All" ? "All" : camp) + " — Leiden Communities");
-      const w = window.open("", "_blank");
-      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-      else alert("Popup blocked — please allow popups and try again.");
-    };
+    leidenBtn.onclick = () => openNetModal("community", campData, _leidenCamp);
     sweepBtn.textContent = "⊕ Find optimal community count";
     sweepBtn.onclick = () => {
       sweepBtn.disabled = true;
@@ -2114,5 +2477,31 @@ function runAnalysis() {
   setupCampTabs("leiden-tabs", camp => { _leidenCamp = camp; updateLeiden(camp); });
 }
 </script>
+
+<!-- ── Interactive Network Modal ── -->
+<div id="net-modal">
+  <div id="net-modal-box">
+    <div id="net-modal-hdr">
+      <div id="nm-hdr-left">
+        <div id="nm-title-row">
+          <span id="nm-title"></span>
+          <span id="nm-subtitle"></span>
+        </div>
+        <div id="nm-camp-tabs" class="camp-tabs"></div>
+        <div id="nm-comm-row"></div>
+      </div>
+      <button id="nm-close-btn" onclick="closeNetModal()" title="Close (Esc)">✕</button>
+    </div>
+    <div id="net-modal-hint">Scroll = zoom · Drag background = pan · Drag nodes = reposition · Hover = details · Dbl-click = reset</div>
+    <div id="net-modal-body">
+      <svg id="nm-svg"></svg>
+      <div id="nm-tip"></div>
+    </div>
+    <div id="net-modal-footer">
+      <button onclick="nmReset()">⌂ Reset</button>
+      <button onclick="nmDoLayout()">↺ Relayout</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
