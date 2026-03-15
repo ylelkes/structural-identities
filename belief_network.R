@@ -26,6 +26,7 @@
 #   05_me_connections.pdf       self-concept associations
 #   06_leiden_communities.pdf   Leiden community structure with coloured hulls
 #   07_leiden_membership.pdf    community membership grid (nodes × communities)
+#   08_leiden_gamma_sweep.pdf   modularity Q vs resolution γ across 10 values
 # ============================================================
 
 # ── 0. Packages ──────────────────────────────────────────────────────────────
@@ -399,6 +400,58 @@ COMM_COLORS <- setNames(
     "#00cec9", "#d63031")[seq_len(n_comm)],
   as.character(seq_len(n_comm))
 )
+
+# ── 6d. Resolution parameter (γ) sweep ──────────────────────────────────────
+#
+# Tests 10 resolution values to map how community count k and modularity Q
+# change with γ.  The fixed γ=1.0 partition (used for plots 06/07) is
+# unchanged; this sweep is purely diagnostic.
+#
+# cluster_leiden() accepts resolution_parameter directly.
+# cluster_louvain() accepts resolution in igraph ≥ 1.5; older versions ignore
+# it gracefully, so all γ values collapse to the same result — the sweep
+# table will then show only one unique partition.
+
+gamma_vals <- c(0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0)
+
+run_leiden_gamma <- function(gamma) {
+  set.seed(42)
+  tryCatch(
+    cluster_leiden(ig,
+      objective_function   = "modularity",
+      resolution_parameter = gamma,
+      weights              = E(ig)$rt_weighted_strength),
+    error = function(e) {
+      tryCatch(
+        cluster_louvain(ig,
+          resolution = gamma,
+          weights    = E(ig)$rt_weighted_strength),
+        error = function(e2) NULL
+      )
+    }
+  )
+}
+
+gamma_sweep_full <- map_dfr(gamma_vals, function(g) {
+  res <- run_leiden_gamma(g)
+  if (is.null(res)) return(NULL)
+  tibble(
+    gamma         = g,
+    n_communities = n_distinct(membership(res)),
+    modularity    = round(modularity(res), 4)
+  )
+})
+
+# For each unique k, keep the entry with the highest Q
+gamma_sweep_best <- gamma_sweep_full %>%
+  group_by(n_communities) %>%
+  slice_max(modularity, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  arrange(n_communities)
+
+write_csv(gamma_sweep_best, file.path(PLOT_DIR, "leiden_gamma_sweep.csv"))
+message(sprintf("✓ Saved leiden_gamma_sweep.csv  (%d unique partitions across %d γ values)",
+                nrow(gamma_sweep_best), nrow(gamma_sweep_full)))
 
 # ── 7. PLOT 1 — Full Belief Network ──────────────────────────────────────────
 #
@@ -986,6 +1039,84 @@ ggsave(file.path(PLOT_DIR, "07_leiden_membership.pdf"),
        device = cairo_pdf)
 message("✓ Saved 07_leiden_membership.pdf")
 
+# ── 15. PLOT 8 — Leiden γ Sweep ──────────────────────────────────────────────
+#
+# Line = modularity Q across all γ tested.
+# Points coloured by k (number of communities).
+# Circled points = unique partitions (one per k, best Q).
+# Labels show k and Q for each unique partition.
+
+SWEEP_COLORS <- c(
+  "#3498db", "#2ecc71", "#f39c12", "#e74c3c",
+  "#9b59b6", "#1abc9c", "#e67e22", "#fd79a8",
+  "#00cec9", "#d63031"
+)
+k_levels <- as.character(sort(unique(gamma_sweep_full$n_communities)))
+k_colors  <- setNames(SWEEP_COLORS[seq_along(k_levels)], k_levels)
+
+p8 <- gamma_sweep_full %>%
+  mutate(k = factor(n_communities)) %>%
+  ggplot(aes(x = gamma, y = modularity)) +
+  geom_line(colour = "#3a4455", linewidth = 0.9) +
+  geom_point(aes(colour = k), size = 3.5) +
+  geom_point(
+    data  = gamma_sweep_best %>% mutate(k = factor(n_communities)),
+    aes(colour = k),
+    size = 6, shape = 21, fill = NA, stroke = 2
+  ) +
+  geom_text_repel(
+    data = gamma_sweep_best %>% mutate(k = factor(n_communities)),
+    aes(label  = sprintf("k = %d\nQ = %.3f", n_communities, modularity),
+        colour = k),
+    size            = 2.8,
+    nudge_y         = 0.018,
+    segment.colour  = "#444444",
+    show.legend     = FALSE
+  ) +
+  geom_vline(
+    xintercept = 1.0, linetype = "dashed",
+    colour = "#666666", linewidth = 0.5
+  ) +
+  annotate("text", x = 1.0, y = min(gamma_sweep_full$modularity) - 0.005,
+           label = "γ = 1.0\n(main plots)", colour = "#666666",
+           size = 2.5, hjust = 0.5, vjust = 1) +
+  scale_colour_manual(values = k_colors, name = "Communities (k)") +
+  scale_x_continuous(breaks = gamma_vals) +
+  theme_minimal(base_family = "sans") +
+  theme(
+    panel.background  = element_rect(fill = "#1a1f2e", colour = NA),
+    plot.background   = element_rect(fill = "#0d1117", colour = NA),
+    axis.text         = element_text(colour = "#cccccc", size = 9),
+    axis.title        = element_text(colour = "#aaaaaa", size = 10),
+    legend.background = element_rect(fill = "#1a1f2e", colour = NA),
+    legend.text       = element_text(colour = "#cccccc", size = 9),
+    legend.title      = element_text(colour = "#aaaaaa", size = 9),
+    plot.title        = element_text(colour = "#eeeeee", size = 13, face = "bold"),
+    plot.subtitle     = element_text(colour = "#888888", size = 9),
+    plot.caption      = element_text(colour = "#555555", size = 8),
+    panel.grid.minor  = element_blank(),
+    panel.grid.major  = element_line(colour = "#2a2f3e", linewidth = 0.4)
+  ) +
+  labs(
+    x        = "Resolution parameter γ  (higher = more communities)",
+    y        = "Modularity Q",
+    title    = "Leiden Community Detection — γ Sweep",
+    subtitle = paste0(
+      "Each point = one γ value  ·  Circled = unique partition count  ·  ",
+      "Higher Q = better-defined community structure  ·  ",
+      "Dashed line = γ used in main plots"
+    ),
+    caption  = paste0(
+      "N = ", N_participants, " participants  ·  ",
+      nrow(gamma_sweep_best), " unique partitions across ",
+      nrow(gamma_sweep_full), " γ values tested"
+    )
+  )
+
+ggsave(file.path(PLOT_DIR, "08_leiden_gamma_sweep.pdf"),
+       p8, width = 10, height = 6, device = cairo_pdf)
+message("✓ Saved 08_leiden_gamma_sweep.pdf")
+
 # ── 12. Console summary ───────────────────────────────────────────────────────
 
 cat("\n══════════════════════════════════════════════════════\n")
@@ -1045,5 +1176,15 @@ community_detail %>%
   pull(row) %>% cat(sep = "\n")
 
 cat("\n  (Membership saved to plots/leiden_communities.csv)\n")
+
+cat(sprintf("\nγ sweep — %d unique partitions across %d values tested:\n",
+            nrow(gamma_sweep_best), nrow(gamma_sweep_full)))
+cat(sprintf("  %-8s  %-14s  %s\n", "γ", "Communities", "Modularity Q"))
+cat("  ", strrep("─", 36), "\n", sep = "")
+gamma_sweep_best %>%
+  mutate(row = sprintf("  %-8.2f  %-14d  %.4f", gamma, n_communities, modularity)) %>%
+  pull(row) %>% cat(sep = "\n")
+cat("\n  (Full table saved to plots/leiden_gamma_sweep.csv)\n")
+
 cat("\n✓ All plots saved to:", normalizePath(PLOT_DIR), "\n")
 cat("══════════════════════════════════════════════════════\n\n")
