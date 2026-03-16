@@ -174,6 +174,19 @@
     font-size: 10px; background: #1a2535; white-space: nowrap; font-family: inherit;
   }
   .nm-comm-btn.off { opacity: 0.3; }
+  #net-modal-box.nm-individual #nm-camp-tabs,
+  #net-modal-box.nm-individual #nm-know-tabs { display: none !important; }
+  /* ── Participant grid ── */
+  .participant-card {
+    background: #111; border: 1px solid #1e1e1e; border-radius: 5px;
+    padding: 12px 14px; cursor: pointer; transition: border-color 0.12s;
+  }
+  .participant-card:hover { border-color: #333; }
+  .p-name { font-size: 0.82rem; color: #e8e8e8; font-weight: bold; margin-bottom: 3px; }
+  .p-id   { font-size: 0.72rem; color: #555; margin-bottom: 6px; }
+  .p-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 7px; }
+  .p-badge { font-size: 0.68rem; padding: 1px 6px; border-radius: 3px; background: #1a1a1a; border: 1px solid; }
+  .p-nodes { font-size: 0.68rem; color: #444; line-height: 1.55; }
 
   /* ── Knowledge tabs ── */
   .know-tabs { display: flex; gap: 6px; margin: 0 0 10px; align-items: center; }
@@ -244,6 +257,7 @@
   <a href="#section-me">Me Connections</a>
   <a href="#section-centrality">Centrality</a>
   <a href="#section-leiden">Communities</a>
+  <a href="#section-individual">Individual</a>
 </nav>
 
 <div class="viz-section" id="section-network">
@@ -330,6 +344,27 @@
     <div id="leiden-sweep-results" style="margin-bottom:16px"></div>
     <button id="open-leiden-btn" class="open-btn" style="margin-bottom:16px">↗ Open Community Network</button>
     <div id="viz-leiden"></div>
+  </div>
+</div>
+
+<div class="viz-section" id="section-individual">
+  <h3 class="viz-toggle">Individual Networks</h3>
+  <div class="viz-content">
+    <p class="viz-sub">Click any participant card to open their personal belief network — built from their own responses only, no aggregation across participants.</p>
+    <div class="camp-tabs" id="indiv-tabs">
+      <button class="camp-tab active" data-camp="All">All</button>
+      <button class="camp-tab" data-camp="Liberal">Liberal</button>
+      <button class="camp-tab" data-camp="Centrist">Centrist</button>
+      <button class="camp-tab" data-camp="Conservative">Conservative</button>
+    </div>
+    <div class="know-tabs" id="indiv-know-tabs">
+      <span class="know-label">Knowledge:</span>
+      <button class="camp-tab active" data-know="All">All</button>
+      <button class="camp-tab" data-know="High">High</button>
+      <button class="camp-tab" data-know="Medium">Medium</button>
+      <button class="camp-tab" data-know="Low">Low</button>
+    </div>
+    <div id="viz-individual"></div>
   </div>
 </div>
 
@@ -2128,12 +2163,158 @@ function openNetModal(mode,campRefBuilder,initKnow,initCamp){
 function _nmEscKey(e){if(e.key==="Escape")closeNetModal();}
 function closeNetModal(){
   document.getElementById("net-modal").classList.remove("open");
+  document.getElementById("net-modal-box").classList.remove("nm-individual");
   window.removeEventListener("mousemove",_nmMouseMove);
   window.removeEventListener("mouseup",_nmMouseUp);
   document.removeEventListener("mousemove",_nmTipFollow);
   document.removeEventListener("keydown",_nmEscKey);
   _nmDrag=null;_nmPan=false;
   nmHideTip();
+}
+
+/* ── Individual network helpers ── */
+
+/* Like aggB2 but no MIN_N_PART filter — for single-participant data */
+function aggB2Individual(b2rows) {
+  const g = {};
+  for (const r of b2rows) {
+    if (!g[r.pair_id]) g[r.pair_id] = {
+      n1: r.node1_label, n2: r.node2_label,
+      n1cat: r.node1_category, n2cat: r.node2_category, vals: [], ratios: [], rts: []
+    };
+    if (r.prop_together != null) g[r.pair_id].vals.push(r.prop_together);
+    if (r.rt_ratio     != null) g[r.pair_id].ratios.push(r.rt_ratio);
+    if (r.median_rt_all!= null) g[r.pair_id].rts.push(r.median_rt_all);
+  }
+  return Object.entries(g).map(([id, d]) => {
+    const mean      = d.vals.reduce((s,v)=>s+v,0) / (d.vals.length||1);
+    const meanRatio = d.ratios.length ? d.ratios.reduce((s,v)=>s+v,0)/d.ratios.length : 1.0;
+    const meanRT    = d.rts.length   ? d.rts.reduce((s,v)=>s+v,0)/d.rts.length       : null;
+    const rtFactor  = Math.max(0.4, 1 - 0.3 * meanRatio);
+    const assocStrength = Math.abs(mean - 0.5);
+    return { id, n1:d.n1, n2:d.n2, n1cat:d.n1cat, n2cat:d.n2cat,
+             meanAssoc:mean, centeredAssoc:mean-0.5,
+             assocStrength, rtFactor, meanRatio, meanRT,
+             rtWeightedStrength: assocStrength * rtFactor,
+             nPart: d.vals.length };
+  }); /* no edge threshold — keep all pairs */
+}
+
+function buildIndividualData(participantId) {
+  const b1rows = _b1Sum.filter(r => r.participant_id === participantId);
+  const b2rows = _b2Sum.filter(r => r.participant_id === participantId);
+  if (!b2rows.length) return null;
+  const nodeValences = computeNodeValences(b1rows);
+  const edgeData     = aggB2Individual(b2rows);
+  const nodeCat = {};
+  b2rows.forEach(r => { nodeCat[r.node1_label]=r.node1_category; nodeCat[r.node2_label]=r.node2_category; });
+  const nodes = Object.keys(nodeCat).map(label => ({ label, category: nodeCat[label]||"" }));
+  computeCentrality(nodes, edgeData);
+  nodes.forEach(n => {
+    const v = nodeValences[n.label];
+    n.valenceScore  = v ? v.valenceScore  : null;
+    n.meanPropGood  = v ? v.meanPropGood  : null;
+  });
+  normalizeValences(nodes);
+  return { nodes, edges: edgeData };
+}
+
+/* Build name map once (lazy) */
+let _nameMap = null;
+function getNameMap() {
+  if (_nameMap) return _nameMap;
+  _nameMap = {};
+  if (_allTrials) _allTrials.forEach(r => { if (!_nameMap[r.participant_id]) _nameMap[r.participant_id] = r.first_name; });
+  return _nameMap;
+}
+
+function renderParticipantGrid(ideology, knowledge) {
+  const container = document.getElementById("viz-individual");
+  /* Collect unique participants from _b2Sum */
+  const seen = new Map();
+  for (const r of _b2Sum) {
+    if (!seen.has(r.participant_id)) {
+      seen.set(r.participant_id, {
+        id: r.participant_id, type: r.participant_type,
+        knowledge: r.participant_knowledge,
+        camp: CAMP_MAP[r.participant_type] || "Unknown",
+        nodes: new Set()
+      });
+    }
+    const p = seen.get(r.participant_id);
+    p.nodes.add(r.node1_label); p.nodes.add(r.node2_label);
+  }
+  let participants = [...seen.values()];
+  if (ideology  !== "All") participants = participants.filter(p => p.camp      === ideology);
+  if (knowledge !== "All") participants = participants.filter(p => p.knowledge === knowledge);
+  if (!participants.length) {
+    container.innerHTML = `<p style="color:#555;padding:16px">No participants for this selection.</p>`;
+    return;
+  }
+  const names = getNameMap();
+  /* Show first 60 to avoid DOM overload */
+  const shown = participants.slice(0, 60);
+  const campColors = { Liberal:"#5b8dd9", Centrist:"#e8a030", Conservative:"#d45f3c" };
+  const knowColors = { High:"#e8a030", Medium:"#5a9", Low:"#7a8ac0" };
+  let html = `<div style="color:#666;font-size:0.78rem;margin-bottom:12px">`;
+  html += `${participants.length} participant${participants.length!==1?"s":""}`
+        + (participants.length > 60 ? ` · showing first 60` : "")
+        + `</div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:16px">`;
+  for (const p of shown) {
+    const name    = names[p.id] || "";
+    const campCol = campColors[p.camp] || "#aaa";
+    const knowCol = knowColors[p.knowledge] || "#aaa";
+    const nodeList = [...p.nodes].sort().join(", ");
+    const safeId   = p.id.replace(/'/g,"\\'");
+    const safeTitle= (name ? name + " · " : "") + p.type.replace(/_/g," ");
+    html += `<div class="participant-card" onclick="openIndivModal('${safeId}','${safeTitle.replace(/'/g,"\\'")}')">`;
+    html += `<div class="p-name">${name || p.id}</div>`;
+    html += `<div class="p-id">${p.id} · ${p.type.replace(/_/g," ")}</div>`;
+    html += `<div class="p-badges">`;
+    html += `<span class="p-badge" style="border-color:${campCol};color:${campCol}">${p.camp}</span>`;
+    html += `<span class="p-badge" style="border-color:${knowCol};color:${knowCol}">${p.knowledge}</span>`;
+    html += `</div>`;
+    html += `<div class="p-nodes">${nodeList}</div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function openIndivModal(participantId, title) {
+  const data = buildIndividualData(participantId);
+  if (!data) { alert("No data found for " + participantId); return; }
+  /* Reuse network modal in individual mode */
+  _nmMode = "network";
+  _nmCampRefBuilder = () => ({ All: data });
+  _nmKnow = "All"; _nmCampRef = { All: data };
+  _nmCamp = "All";
+  const overlay = document.getElementById("net-modal");
+  overlay.classList.add("open");
+  document.getElementById("net-modal-box").classList.add("nm-individual");
+  document.getElementById("nm-title").textContent = title;
+  document.getElementById("nm-subtitle").textContent =
+    data.nodes.length + " nodes · " + data.edges.length + " pairs";
+  document.getElementById("nm-comm-row").style.display = "none";
+  requestAnimationFrame(() => {
+    const body = document.getElementById("net-modal-body");
+    const W = body.clientWidth||900, H = body.clientHeight||600;
+    const svg = document.getElementById("nm-svg");
+    svg.innerHTML = "";
+    svg.setAttribute("width", W); svg.setAttribute("height", H);
+    const zg = nmEl("g",{id:"nm-zg"}); svg.appendChild(zg);
+    zg.appendChild(nmEl("g",{id:"nm-hl"}));
+    zg.appendChild(nmEl("g",{id:"nm-el"}));
+    zg.appendChild(nmEl("g",{id:"nm-nl"}));
+    _nmTx=0; _nmTy=0; _nmSc=1;
+    nmSetupInteraction();
+    window.addEventListener("mousemove", _nmMouseMove);
+    window.addEventListener("mouseup",   _nmMouseUp);
+    document.addEventListener("mousemove", _nmTipFollow);
+    nmLoadCamp("All");
+  });
+  document.addEventListener("keydown", _nmEscKey);
 }
 
 /* ── Table Results Modal ── */
@@ -2685,6 +2866,13 @@ function runAnalysis() {
   updateLeiden();
   setupCampTabs("leiden-tabs", camp => { _leidenCamp = camp; updateLeiden(); });
   setupKnowTabs("leiden-know-tabs", know => { _leidenKnow = know; updateLeiden(); });
+
+  // ── Individual networks section ──
+  let _indivCamp = "All", _indivKnow = "All";
+  _nameMap = null; // reset name map so it's rebuilt with current _allTrials
+  renderParticipantGrid(_indivCamp, _indivKnow);
+  setupCampTabs("indiv-tabs", camp => { _indivCamp = camp; renderParticipantGrid(_indivCamp, _indivKnow); });
+  setupKnowTabs("indiv-know-tabs", know => { _indivKnow = know; renderParticipantGrid(_indivCamp, _indivKnow); });
 }
 </script>
 
